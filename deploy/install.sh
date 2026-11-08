@@ -117,7 +117,7 @@ install -d -o root -g inventory -m 0750 "$ENV_DIR"
 say "Copie de l'application dans $APP_DIR"
 install -d -o root -g root -m 0755 "$APP_DIR"
 rsync -a --delete --exclude node_modules \
-  "$SRC_DIR/dist" "$SRC_DIR/views" "$SRC_DIR/public" "$SRC_DIR/package.json" "$SRC_DIR/package-lock.json" "$APP_DIR/"
+  "$SRC_DIR/dist" "$SRC_DIR/views" "$SRC_DIR/public" "$SRC_DIR/deploy" "$SRC_DIR/package.json" "$SRC_DIR/package-lock.json" "$APP_DIR/"
 cd "$APP_DIR"
 rm -rf "$APP_DIR/node_modules"
 npm ci --omit=dev --no-audit --no-fund --loglevel=error

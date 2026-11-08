@@ -70,7 +70,7 @@ Chaque compte configure son TOTP à sa première connexion. L'application garde 
 
 ## 5. Mettre à jour sans perte de données
 
-À partir de la 1.5.2, une seule commande suffit (la page Administration l'affiche quand une nouvelle version est publiée) :
+À partir de la 1.5.4, une seule commande suffit (la page Administration l'affiche quand une nouvelle version est publiée) :
 
 ```bash
 bash /opt/inventory/deploy/update.sh            # dernière version publiée

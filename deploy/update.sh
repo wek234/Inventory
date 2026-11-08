@@ -88,7 +88,9 @@ fi
 
 JSON=$(curl -fsSL -H 'Accept: application/vnd.github+json' "$API") || { echo "Release introuvable sur $REPO."; exit 1; }
 TAG=$(printf '%s' "$JSON" | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4)
-VERSION=${TAG#v}
+# Numéro de version tiré du tag, même mal saisi (« v.1.5.3 », « release-1.5.3 »…).
+VERSION=$(printf '%s' "$TAG" | grep -oE '[0-9]+(\.[0-9]+)+' | head -1 || true)
+VERSION=${VERSION:-${TAG#v}}
 
 echo "Version installée : ${CURRENT:-aucune}"
 echo "Version visée     : $VERSION ($REPO)"

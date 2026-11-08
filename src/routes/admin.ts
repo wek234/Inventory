@@ -39,6 +39,12 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
+// Numéro de version tiré du tag, même mal saisi : « v1.5.3 », « 1.5.3 », « v.1.5.3 », « release-1.5.3 » donnent 1.5.3.
+export function versionFromTag(tag: string): string {
+  const m = /(\d+(?:\.\d+)+)/.exec(tag);
+  return m ? m[1] : tag.replace(/^v/i, '');
+}
+
 async function latestRelease(force = false): Promise<ReleaseInfo | null> {
   if (!config.updateRepo) return null;
   if (!force && releaseCache && Date.now() - releaseCache.checkedAt.getTime() < CACHE_MS) return releaseCache;
@@ -56,7 +62,7 @@ async function latestRelease(force = false): Promise<ReleaseInfo | null> {
         checkedAt: new Date(),
         ok: true,
         tag,
-        version: tag.replace(/^v/i, ''),
+        version: versionFromTag(tag),
         name: String(j.name || tag),
         url: typeof j.html_url === 'string' && j.html_url.startsWith('https://github.com/') ? j.html_url : `https://github.com/${config.updateRepo}/releases`,
         publishedAt: j.published_at,
