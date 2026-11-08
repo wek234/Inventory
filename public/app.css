@@ -314,8 +314,8 @@ progress.bar { -webkit-appearance: none; appearance: none; width: 100%; height: 
 progress.bar::-webkit-progress-bar { background: var(--surface-2); border-radius: 4px; }
 progress.bar::-webkit-progress-value { background: var(--bar); border-radius: 4px; }
 progress.bar::-moz-progress-bar { background: var(--bar); border-radius: 4px; }
-.bar-gris { --bar: var(--b-gris-t); } .bar-vert { --bar: var(--b-vert-t); } .bar-jaune { --bar: var(--b-jaune-t); }
-.bar-orange { --bar: var(--b-orange-t); } .bar-rouge { --bar: var(--b-rouge-t); } .bar-bleu { --bar: var(--b-bleu-t); } .bar-violet { --bar: var(--b-violet-t); }
+progress.bar.bar-gris { --bar: var(--b-gris-t); } progress.bar.bar-vert { --bar: var(--b-vert-t); } progress.bar.bar-jaune { --bar: var(--b-jaune-t); }
+progress.bar.bar-orange { --bar: var(--b-orange-t); } progress.bar.bar-rouge { --bar: var(--b-rouge-t); } progress.bar.bar-bleu { --bar: var(--b-bleu-t); } progress.bar.bar-violet { --bar: var(--b-violet-t); }
 
 /* ---------- Complétude (fiche objet) ---------- */
 .na-list { display: flex; flex-wrap: wrap; gap: 6px; }

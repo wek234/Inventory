@@ -5,6 +5,23 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { config } from './config.js';
 import { displayValue, formatNumber, rawValue, ATTR_TYPES } from './services/attributes.js';
 import { icon } from './icons.js';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+// Adresse des fichiers statiques avec empreinte du contenu : chaque mise à jour force le navigateur à les recharger.
+const assetHashes = new Map<string, string>();
+function asset(file: string): string {
+  let h = assetHashes.get(file);
+  if (!h) {
+    try {
+      h = createHash('sha256').update(readFileSync(path.join(config.appRoot, 'public', file))).digest('hex').slice(0, 12);
+    } catch {
+      h = String(Date.now());
+    }
+    if (process.env.NODE_ENV === 'production') assetHashes.set(file, h);
+  }
+  return `/static/${file}?v=${h}`;
+}
 
 const eta = new Eta({
   views: path.join(config.appRoot, 'views'),
@@ -35,6 +52,7 @@ export const helpers = {
   },
   plural: (n: number, one: string, many: string) => `${formatNumber(n)} ${Math.abs(n) > 1 ? many : one}`,
   icon,
+  asset,
   indent: (depth: number) => '   '.repeat(depth),
 };
 

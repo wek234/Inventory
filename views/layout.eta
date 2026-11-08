@@ -7,10 +7,10 @@
 <meta name="csrf-token" content="<%= it.csrf %>">
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0}'>
 <meta name="robots" content="noindex, nofollow">
-<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/static/app.css">
-<script src="/static/vendor/htmx.min.js" defer></script>
-<script src="/static/app.js" defer></script>
+<link rel="icon" href="<%= it.h.asset('icon.svg') %>" type="image/svg+xml">
+<link rel="stylesheet" href="<%= it.h.asset('app.css') %>">
+<script src="<%= it.h.asset('vendor/htmx.min.js') %>" defer></script>
+<script src="<%= it.h.asset('app.js') %>" defer></script>
 </head>
 <body>
 <%

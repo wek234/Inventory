@@ -62,7 +62,8 @@ await app.register(multipart, {
 await app.register(fastifyStatic, {
   root: path.join(config.appRoot, 'public'),
   prefix: '/static/',
-  maxAge: '7d',
+  maxAge: '365d',
+  immutable: true,
   cacheControl: true,
 });
 
