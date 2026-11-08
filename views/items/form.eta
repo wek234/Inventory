@@ -1,0 +1,91 @@
+<% layout('/layout') %>
+<div class="page-head">
+  <div>
+    <a class="btn btn-back" href="<%= it.itemId ? '/objets/' + it.itemId : '/objets' %>"><%= it.itemId ? 'Retour à la fiche' : 'Retour à la liste' %></a>
+    <% if (it.itemId) { %><div class="crumbs"><a href="/objets">Objets</a> › <a href="/objets/<%= it.itemId %>"><%= it.item.name %></a></div><% } else { %><div class="crumbs"><a href="/objets">Objets</a></div><% } %>
+    <h1><%= it.itemId ? 'Modifier l’objet' : 'Nouvel objet' %></h1>
+  </div>
+</div>
+<% if (Object.keys(it.errors).length) { %><div class="flash erreur" role="alert">Le formulaire contient des erreurs : vérifiez les champs signalés.</div><% } %>
+<form method="post" action="<%= it.itemId ? '/objets/' + it.itemId : '/objets' %>" class="stack" novalidate>
+  <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+  <section class="card">
+    <div class="card-head"><h2>Identité</h2></div>
+    <div class="card-body form-grid">
+      <div class="field full">
+        <label for="name">Nom <span class="muted">(obligatoire)</span></label>
+        <input id="name" name="name" type="text" value="<%= it.item.name %>" required maxlength="200" class="<%= it.errors.name ? 'invalid' : '' %>" autofocus>
+        <% if (it.errors.name) { %><span class="err"><%= it.errors.name %></span><% } %>
+      </div>
+      <div class="field">
+        <label for="brand">Marque</label>
+        <input id="brand" name="brand" type="text" value="<%= it.item.brand %>" maxlength="120">
+      </div>
+      <div class="field">
+        <label for="model">Modèle</label>
+        <input id="model" name="model" type="text" value="<%= it.item.model %>" maxlength="200">
+      </div>
+      <div class="field">
+        <label for="serial">N° de série</label>
+        <input id="serial" name="serial" type="text" value="<%= it.item.serial %>" maxlength="120">
+      </div>
+      <div class="field">
+        <label for="quantity">Quantité</label>
+        <input id="quantity" name="quantity" type="number" min="1" step="1" value="<%= it.item.quantity %>" class="<%= it.errors.quantity ? 'invalid' : '' %>">
+        <span class="hint">Au-delà de 1, la fiche est un lot (ex. 12 câbles XLR).</span>
+        <% if (it.errors.quantity) { %><span class="err"><%= it.errors.quantity %></span><% } %>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Classement</h2></div>
+    <div class="card-body form-grid">
+      <div class="field">
+        <label for="category_id">Catégorie</label>
+        <select id="category_id" name="category_id" hx-get="/objets/formulaire/caracteristiques" hx-include="closest form" hx-params="not _csrf" hx-target="#attributs" hx-swap="outerHTML" hx-trigger="change">
+          <option value="">Aucune</option>
+          <% for (const c of it.cats) { %><option value="<%= c.id %>" <%= it.item.category_id === c.id ? 'selected' : '' %>><%= it.h.indent(c.depth) %><%= c.name %></option><% } %>
+        </select>
+        <% if (it.errors.category_id) { %><span class="err"><%= it.errors.category_id %></span><% } %>
+      </div>
+      <div class="field">
+        <label for="location_id">Emplacement</label>
+        <select id="location_id" name="location_id">
+          <option value="">Aucun</option>
+          <% for (const l of it.locs) { %><option value="<%= l.id %>" <%= it.item.location_id === l.id ? 'selected' : '' %>><%= it.h.indent(l.depth) %><%= l.name %></option><% } %>
+        </select>
+        <% if (it.errors.location_id) { %><span class="err"><%= it.errors.location_id %></span><% } %>
+      </div>
+      <div class="field">
+        <label for="status_id">Statut</label>
+        <select id="status_id" name="status_id">
+          <option value="">Sans statut</option>
+          <% for (const s of it.statuses) { %><option value="<%= s.id %>" <%= it.item.status_id === s.id ? 'selected' : '' %>><%= s.name %></option><% } %>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Caractéristiques</h2></div>
+    <div class="card-body">
+      <%~ include('/items/_attributes', it) %>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Notes</h2></div>
+    <div class="card-body">
+      <div class="field">
+        <label for="notes" class="sr-only">Notes</label>
+        <textarea id="notes" name="notes" rows="4"><%= it.item.notes %></textarea>
+      </div>
+    </div>
+  </section>
+
+  <div class="form-actions">
+    <a class="btn" href="<%= it.itemId ? '/objets/' + it.itemId : '/objets' %>">Annuler</a>
+    <button class="btn btn-primary" type="submit"><%= it.itemId ? 'Enregistrer' : 'Créer l’objet' %></button>
+  </div>
+</form>

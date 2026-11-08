@@ -1,0 +1,22 @@
+<% layout('/auth-layout', { ...it, title: 'Connexion' }) %>
+<div>
+  <h1>Inventaire</h1>
+  <p class="muted">Connectez-vous pour continuer.</p>
+</div>
+<% if (it.error) { %><div class="flash erreur" role="alert"><%= it.error %></div><% } %>
+<form method="post" action="/login" class="stack" autocomplete="on">
+  <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+  <div class="field">
+    <label for="username">Identifiant</label>
+    <input id="username" name="username" type="text" autocomplete="username" required autofocus value="<%= it.username || '' %>" maxlength="64">
+  </div>
+  <div class="field">
+    <label for="password">Mot de passe</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256">
+  </div>
+  <button class="btn btn-primary" type="submit">Continuer</button>
+</form>
+<% if (it.oidc.enabled) { %>
+<div class="nav-sep"></div>
+<a class="btn" href="/auth/oidc">Se connecter avec <%= it.oidc.label %></a>
+<% } %>

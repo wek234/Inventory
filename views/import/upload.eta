@@ -1,0 +1,28 @@
+<% layout('/layout') %>
+<div class="page-head"><h1>Import</h1></div>
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Envoyer un fichier</h2></div>
+    <div class="card-body">
+      <form method="post" action="/import?_csrf=<%= encodeURIComponent(it.csrf) %>" enctype="multipart/form-data" class="stack">
+        <div class="field">
+          <label for="file">Classeur Excel (.xlsx) ou CSV</label>
+          <input id="file" type="file" name="file" accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" required>
+          <span class="hint">20 Mo maximum. Toutes les feuilles du classeur sont lues.</span>
+        </div>
+        <div><button class="btn btn-primary" type="submit">Analyser le fichier</button></div>
+      </form>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Déroulement</h2></div>
+    <div class="card-body small">
+      <ol class="stack">
+        <li><strong>Correspondances</strong> : pour chaque feuille, choisissez la catégorie, la disposition (un objet par ligne ou par colonne) et ce que devient chaque colonne.</li>
+        <li><strong>Aperçu</strong> : vérifiez et corrigez chaque objet avant l’import (marque, modèle, caractéristiques…). Les découpages incertains sont signalés.</li>
+        <li><strong>Import</strong> : rien n’est enregistré avant votre validation finale.</li>
+      </ol>
+      <p class="muted">Les valeurs « / » et « ? » sont ignorées. Les objets sans emplacement vont dans l’emplacement choisi par défaut pour la feuille.</p>
+    </div>
+  </section>
+</div>

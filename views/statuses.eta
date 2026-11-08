@@ -1,0 +1,39 @@
+<% layout('/layout') %>
+<div class="page-head"><h1>Statuts</h1></div>
+<div class="cols">
+  <section class="card">
+    <div class="card-head"><h2>Liste</h2><span class="muted small">L’ordre fixe l’affichage dans les menus</span></div>
+    <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Aperçu</th><th>Nom</th><th>Couleur</th><th>Ordre</th><th>Objets</th><th></th></tr></thead>
+      <tbody>
+      <% for (const s of it.statuses) { const fid = 'st' + s.id; %>
+        <tr>
+          <td><span class="badge badge-<%= s.color %>"><%= s.name %></span></td>
+          <td><input form="<%= fid %>" type="text" name="name" value="<%= s.name %>" maxlength="60" required aria-label="Nom"></td>
+          <td><select form="<%= fid %>" name="color" aria-label="Couleur"><% for (const c of it.colors) { %><option value="<%= c %>" <%= s.color === c ? 'selected' : '' %>><%= c %></option><% } %></select></td>
+          <td><input form="<%= fid %>" type="number" name="sort_order" value="<%= s.sort_order %>" step="1" aria-label="Ordre"></td>
+          <td><a href="/objets?status=<%= s.id %>"><%= s.n %></a></td>
+          <td class="actions">
+            <form id="<%= fid %>" method="post" action="/statuts/<%= s.id %>" class="inline"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm" type="submit">Enregistrer</button></form>
+            <form method="post" action="/statuts/<%= s.id %>/supprimer" class="inline" data-confirm="Supprimer le statut « <%= s.name %> » ?<%= s.n ? ' ' + s.n + ' objet(s) passeront sans statut.' : '' %>"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm btn-danger" type="submit">Supprimer</button></form>
+          </td>
+        </tr>
+      <% } %>
+      </tbody>
+    </table>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Nouveau statut</h2></div>
+    <div class="card-body">
+      <form method="post" action="/statuts" class="stack">
+        <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+        <div class="field"><label for="s-name">Nom</label><input id="s-name" name="name" type="text" maxlength="60" required></div>
+        <div class="field"><label for="s-color">Couleur</label><select id="s-color" name="color"><% for (const c of it.colors) { %><option value="<%= c %>"><%= c %></option><% } %></select></div>
+        <div class="field"><label for="s-order">Ordre</label><input id="s-order" name="sort_order" type="number" value="<%= it.statuses.length %>" step="1"></div>
+        <div><button class="btn btn-primary" type="submit">Créer</button></div>
+      </form>
+    </div>
+  </section>
+</div>

@@ -1,0 +1,18 @@
+<% layout('/auth-layout', { ...it, title: 'Configurer la double authentification' }) %>
+<div>
+  <h1>Configurer la double authentification</h1>
+  <p class="muted">Étape obligatoire. Scannez ce QR code avec votre application d’authentification (Aegis, 2FAS, Google Authenticator, Bitwarden…), puis saisissez le code affiché.</p>
+</div>
+<div class="qr"><img src="<%= it.qr %>" alt="QR code de configuration TOTP" width="220" height="220"></div>
+<details>
+  <summary class="small">Saisie manuelle de la clé</summary>
+  <p class="secret"><%= it.secret %></p>
+</details>
+<form method="post" action="/login/enroll" class="stack">
+  <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+  <div class="field">
+    <label for="code">Code de vérification</label>
+    <input id="code" name="code" type="text" class="code-input" inputmode="numeric" pattern="[0-9 ]{6,7}" autocomplete="one-time-code" required maxlength="7">
+  </div>
+  <button class="btn btn-primary" type="submit">Activer</button>
+</form>

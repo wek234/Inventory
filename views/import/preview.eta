@@ -1,0 +1,59 @@
+<% layout('/layout') %>
+<div class="page-head">
+  <div>
+    <a class="btn btn-back" href="/import/<%= it.bid %>">Retour aux correspondances</a>
+    <div class="crumbs"><a href="/import">Import</a> › <a href="/import/<%= it.bid %>">Correspondances</a></div>
+    <h1>Aperçu avant import</h1>
+    <p class="muted small">Étape 3 sur 3. <%= it.h.plural(it.rows.length, 'objet', 'objets') %>, dont <%= it.warned %> à vérifier (surlignés). Corrigez directement dans le tableau : rien n’est enregistré avant « Importer ».</p>
+  </div>
+</div>
+<% if (Object.keys(it.errors).length) { %><div class="flash erreur" role="alert"><%= Object.keys(it.errors).length %> ligne(s) contiennent des erreurs : corrigez-les ou décochez-les.</div><% } %>
+<form method="post" action="/import/<%= it.bid %>/apercu" class="card">
+  <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+  <div class="card-head">
+    <div class="row">
+      <button class="btn btn-sm" type="button" data-action="check-all">Tout cocher</button>
+      <button class="btn btn-sm" type="button" data-action="check-none">Tout décocher</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+  <table class="table preview-table">
+    <thead><tr><th></th><th>Feuille</th><th>Nom</th><th>Marque</th><th>Modèle</th><th>N° série</th><th>Qté</th><th>Catégorie</th><th>Emplacement</th><th>Statut</th><th>Caractéristiques</th><th>Notes</th></tr></thead>
+    <tbody>
+    <% it.rows.forEach((r, i) => { const p = 'r' + i + '_'; const errs = it.errors[i]; %>
+      <tr class="<%= r.include ? '' : 'excluded' %> <%= errs ? 'has-error' : '' %>">
+        <td><input type="checkbox" name="<%= p %>inc" value="1" <%= r.include ? 'checked' : '' %> data-row-include aria-label="Importer cette ligne"></td>
+        <td class="small muted nowrap"><%= r.sheet %></td>
+        <td>
+          <input type="text" name="<%= p %>name" value="<%= r.name %>" maxlength="200" aria-label="Nom">
+          <% if (r.warnings.length) { %><div class="warn-box mt"><%= r.warnings.join(' · ') %></div><% } %>
+          <% if (errs) { %><div class="err"><%= errs.join(' · ') %></div><% } %>
+        </td>
+        <td><input type="text" name="<%= p %>brand" value="<%= r.brand %>" maxlength="120" aria-label="Marque"></td>
+        <td><input type="text" name="<%= p %>model" value="<%= r.model %>" maxlength="200" aria-label="Modèle"></td>
+        <td><input type="text" name="<%= p %>serial" value="<%= r.serial %>" maxlength="120" aria-label="N° de série"></td>
+        <td><input type="text" name="<%= p %>qty" value="<%= r.quantity %>" maxlength="7" inputmode="numeric" aria-label="Quantité" class="qty"></td>
+        <td><select name="<%= p %>cat" aria-label="Catégorie"><option value="">Aucune</option><% for (const c of it.cats) { %><option value="<%= c.id %>" <%= r.categoryId === c.id ? 'selected' : '' %>><%= it.h.indent(c.depth) %><%= c.name %></option><% } %></select></td>
+        <td><select name="<%= p %>loc" aria-label="Emplacement"><option value="">Aucun</option><% for (const l of it.locs) { %><option value="<%= l.id %>" <%= r.locationId === l.id ? 'selected' : '' %>><%= it.h.indent(l.depth) %><%= l.name %></option><% } %></select></td>
+        <td><select name="<%= p %>status" aria-label="Statut"><option value="">Sans statut</option><% for (const s of it.statusOpts) { %><option value="<%= s.key %>" <%= r.statusKey === s.key ? 'selected' : '' %>><%= s.label %></option><% } %></select></td>
+        <td>
+          <% if (r.values.length) { %>
+          <div class="vals">
+            <% r.values.forEach((v, j) => { %><label for="<%= p %>v<%= j %>"><%= v.name %><%= v.unit ? ' (' + v.unit + ')' : '' %></label><input id="<%= p %>v<%= j %>" type="text" name="<%= p %>v<%= j %>" value="<%= v.raw %>"><% }) %>
+          </div>
+          <% } else { %><span class="muted small">Aucune</span><% } %>
+        </td>
+        <td><textarea name="<%= p %>notes" rows="2" aria-label="Notes"><%= r.notes %></textarea></td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+  </div>
+  <div class="sticky-actions">
+    <button class="btn" type="submit" name="action" value="back">Retour aux correspondances</button>
+    <div class="row">
+      <button class="btn" type="submit" name="action" value="save">Enregistrer les corrections</button>
+      <button class="btn btn-primary" type="submit" name="action" value="confirm">Importer les lignes cochées</button>
+    </div>
+  </div>
+</form>

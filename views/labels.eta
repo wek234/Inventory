@@ -1,0 +1,21 @@
+<% layout('/layout') %>
+<div class="page-head no-print">
+  <div>
+    <a class="btn btn-back" href="<%= it.back %>">Retour</a>
+    <h1>Étiquettes QR</h1>
+    <p class="muted small"><%= it.h.plural(it.labels.length, 'étiquette', 'étiquettes') %> au format 62 × 29 mm. Le QR code ouvre la fiche (connexion requise).<% if (it.truncated) { %> Limité aux 500 premiers objets : affinez les filtres.<% } %></p>
+  </div>
+  <div class="actions"><button class="btn btn-primary" type="button" data-action="print">Imprimer</button></div>
+</div>
+<div class="labels">
+  <% for (const l of it.labels) { %>
+  <div class="label-card">
+    <%~ l.svg %>
+    <div>
+      <div class="t"><%= l.title %></div>
+      <% if (l.sub) { %><div class="s"><%= l.sub %></div><% } %>
+      <div class="c"><%= l.code %></div>
+    </div>
+  </div>
+  <% } %>
+</div>

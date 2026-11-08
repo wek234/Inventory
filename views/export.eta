@@ -1,0 +1,19 @@
+<% layout('/layout') %>
+<div class="page-head"><h1>Export</h1></div>
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Tableur (CSV)</h2></div>
+    <div class="card-body stack">
+      <p class="small muted">Une ligne par objet, une colonne par caractéristique. Séparateur point-virgule, encodage UTF-8 : s’ouvre directement dans Excel. Le fichier peut être réimporté.</p>
+      <p class="small muted">Pour n’exporter qu’une sélection, filtrez la liste des objets puis utilisez « Exporter en CSV ».</p>
+      <div><a class="btn btn-primary" href="/export/objets.csv">Tout exporter en CSV</a></div>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Export complet (JSON)</h2></div>
+    <div class="card-body stack">
+      <p class="small muted">Toutes les données structurées : objets, caractéristiques, emplacements, catégories, statuts, liens, entretien et liste des fichiers joints (les fichiers eux-mêmes sont couverts par la sauvegarde du serveur).</p>
+      <div><a class="btn" href="/export/inventaire.json">Télécharger le JSON</a></div>
+    </div>
+  </section>
+</div>

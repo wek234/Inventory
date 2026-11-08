@@ -1,0 +1,6 @@
+<% if (it.user) { layout('/layout', it) } else { layout('/auth-layout', it) } %>
+<div class="stack">
+  <h1><%= it.title %></h1>
+  <p class="muted"><%= it.message %></p>
+  <p><a class="btn" href="/">Retour à l’accueil</a></p>
+</div>

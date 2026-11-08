@@ -1,0 +1,131 @@
+<% layout('/layout') %>
+<% const k = it.kind; const n = it.node; const isCat = k.table === 'categories'; %>
+<div class="page-head">
+  <div>
+    <% const parent = it.lineage.length > 1 ? it.lineage[it.lineage.length - 2] : null; %>
+    <a class="btn btn-back" href="<%= parent ? k.base + '/' + parent.id : k.base %>">Retour <%= parent ? 'à « ' + parent.name + ' »' : 'aux ' + k.many.toLowerCase() %></a>
+    <div class="crumbs"><a href="<%= k.base %>"><%= k.many %></a><% for (const a of it.lineage.slice(0, -1)) { %> › <a href="<%= k.base %>/<%= a.id %>"><%= a.name %></a><% } %></div>
+    <h1><%= n.name %></h1>
+    <% if (n.description) { %><p class="muted pre"><%= n.description %></p><% } %>
+  </div>
+  <div class="actions">
+    <% if (!isCat) { %><a class="btn" href="/emplacements/<%= n.id %>/etiquette">Étiquette QR</a><% } %>
+    <a class="btn" href="/objets?<%= k.itemFilter %>=<%= n.id %>">Voir les objets (<%= it.total.get(n.id) || 0 %>)</a>
+    <a class="btn btn-primary" href="/objets/nouveau?<%= k.itemFilter %>=<%= n.id %>">Nouvel objet ici</a>
+  </div>
+</div>
+
+<div class="cols">
+  <div class="stack">
+    <% if (isCat) { %>
+    <section class="card" id="caracteristiques">
+      <div class="card-head"><h2>Caractéristiques</h2><span class="muted small">proposées sur chaque objet de cette catégorie et de ses sous-catégories</span></div>
+      <% if (it.inheritedDefs.length) { %>
+      <div class="card-body">
+        <div class="label">Héritées</div>
+        <p class="small muted"><% it.inheritedDefs.forEach((d, idx) => { %><%= idx ? ', ' : '' %><%= d.name %> <span class="muted">(<%= it.h.attrTypeLabel(d.type) %><%= d.unit ? ', ' + d.unit : '' %>, de <%= d.ownerName %>)</span><% }) %></p>
+      </div>
+      <% } %>
+      <% if (it.ownDefs.length) { %>
+      <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Ordre</th><th>Nom</th><th>Type</th><th>Unité / options</th><th></th></tr></thead>
+        <tbody>
+        <% for (const d of it.ownDefs) { %>
+          <tr>
+            <td colspan="5">
+              <form method="post" action="/caracteristiques/<%= d.id %>" class="attr-row">
+                <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+                <div class="field"><label class="sr-only">Nom</label><input type="text" name="name" value="<%= d.name %>" maxlength="120" required></div>
+                <div class="field"><label class="sr-only">Type</label>
+                  <select name="type" <%= d.used ? 'title="Type verrouillé : des valeurs existent"' : '' %>>
+                    <% for (const t of it.h.attrTypes) { if (d.used && t.value !== d.type) continue; %><option value="<%= t.value %>" <%= d.type === t.value ? 'selected' : '' %>><%= t.label %></option><% } %>
+                  </select>
+                </div>
+                <div class="field"><label class="sr-only">Ordre</label><input type="number" name="sort_order" value="<%= d.sort_order %>" step="1"></div>
+                <div class="field attr-value">
+                  <label class="sr-only">Unité ou options</label>
+                  <% if (d.type === 'select') { %><textarea name="options" rows="3" placeholder="Une option par ligne"><%= d.optionList.join('\n') %></textarea><% } else { %><input type="text" name="unit" value="<%= d.unit || '' %>" maxlength="32" placeholder="Unité (type Nombre)"><details class="small"><summary class="muted">Options (si passage en liste de choix)</summary><textarea name="options" rows="2" placeholder="Une option par ligne"></textarea></details><% } %>
+                  <span class="hint"><%= d.used ? it.h.plural(d.used, 'valeur saisie', 'valeurs saisies') : 'Aucune valeur saisie' %></span>
+                </div>
+                <div class="row">
+                  <button class="btn btn-sm" type="submit">Enregistrer</button>
+                  <button class="btn btn-sm btn-danger" type="submit" formaction="/caracteristiques/<%= d.id %>/supprimer" data-confirm-submit="Supprimer la caractéristique « <%= d.name %> » ? Les valeurs déjà saisies resteront sur les objets en caractéristiques libres.">Suppr.</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+        <% } %>
+        </tbody>
+      </table>
+      </div>
+      <% } else { %><div class="card-body"><p class="muted">Aucune caractéristique propre à cette catégorie.</p></div><% } %>
+      <div class="card-body">
+        <form method="post" action="/categories/<%= n.id %>/caracteristiques" class="stack">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+          <div class="label">Nouvelle caractéristique</div>
+          <div class="form-grid">
+            <div class="field"><label for="d-name">Nom</label><input id="d-name" name="name" type="text" maxlength="120" required placeholder="ex. Puissance"></div>
+            <div class="field"><label for="d-type">Type</label>
+              <select id="d-type" name="type"><% for (const t of it.h.attrTypes) { %><option value="<%= t.value %>"><%= t.label %></option><% } %></select></div>
+            <div class="field"><label for="d-unit">Unité <span class="muted">(type Nombre)</span></label><input id="d-unit" name="unit" type="text" maxlength="32" placeholder="ex. W, Go, kg"></div>
+            <div class="field"><label for="d-options">Options <span class="muted">(type Liste de choix, une par ligne)</span></label><textarea id="d-options" name="options" rows="2"></textarea></div>
+          </div>
+          <div><button class="btn btn-sm" type="submit">Ajouter la caractéristique</button></div>
+        </form>
+      </div>
+    </section>
+    <% } %>
+
+    <section class="card">
+      <div class="card-head"><h2>Sous-<%= k.one %>s</h2></div>
+      <% if (it.children.length) { %>
+      <ul class="tree">
+        <% for (const c of it.children) { %>
+        <li class="d0"><a href="<%= k.base %>/<%= c.id %>"><%= c.name %></a><a class="count" href="/objets?<%= k.itemFilter %>=<%= c.id %>"><%= it.direct.get(c.id) || 0 %> / <%= it.total.get(c.id) || 0 %></a></li>
+        <% } %>
+      </ul>
+      <% } %>
+      <div class="card-body">
+        <form method="post" action="<%= k.base %>" class="row">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+          <input type="hidden" name="parent_id" value="<%= n.id %>">
+          <label class="sr-only" for="c-name">Nom</label>
+          <input id="c-name" name="name" type="text" maxlength="120" required placeholder="Nom du sous-élément">
+          <button class="btn btn-sm" type="submit">Ajouter</button>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card-head"><h2>Modifier</h2></div>
+      <div class="card-body">
+        <form method="post" action="<%= k.base %>/<%= n.id %>" class="stack">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+          <div class="field"><label for="e-name">Nom</label><input id="e-name" name="name" type="text" value="<%= n.name %>" maxlength="120" required></div>
+          <div class="field">
+            <label for="e-parent">Dans</label>
+            <select id="e-parent" name="parent_id">
+              <option value="">(racine)</option>
+              <% for (const p of it.parents) { %><option value="<%= p.id %>" <%= n.parent_id === p.id ? 'selected' : '' %>><%= it.h.indent(p.depth) %><%= p.name %></option><% } %>
+            </select>
+          </div>
+          <div class="field"><label for="e-desc">Description</label><textarea id="e-desc" name="description" rows="3"><%= n.description || '' %></textarea></div>
+          <div><button class="btn btn-primary" type="submit">Enregistrer</button></div>
+        </form>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Supprimer</h2></div>
+      <div class="card-body">
+        <p class="small muted">Possible uniquement si aucun objet ni sous-élément n’y est rattaché.</p>
+        <form method="post" action="<%= k.base %>/<%= n.id %>/supprimer" data-confirm="Supprimer « <%= n.name %> » ?">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+          <button class="btn btn-danger" type="submit">Supprimer</button>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>

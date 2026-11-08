@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr" data-theme="<%= it.theme %>">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= it.title || 'Connexion' %> · Inventaire</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="auth">
+  <div class="card">
+    <div class="card-body stack">
+      <% if (it.flash) { %><div class="flash <%= it.flash.type %>" role="status"><%= it.flash.msg %></div><% } %>
+      <%~ it.body %>
+    </div>
+  </div>
+</div>
+</body>
+</html>

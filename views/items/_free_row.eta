@@ -1,0 +1,22 @@
+<div class="attr-row">
+  <div class="field">
+    <label class="sr-only">Nom</label>
+    <input type="text" name="free_name" value="<%= it.row.name %>" placeholder="Nom (ex. Couleur)" maxlength="120" class="<%= it.error ? 'invalid' : '' %>">
+  </div>
+  <div class="field">
+    <label class="sr-only">Type</label>
+    <select name="free_type">
+      <% for (const t of it.freeTypes) { %><option value="<%= t %>" <%= it.row.type === t ? 'selected' : '' %>><%= it.h.attrTypeLabel(t) %></option><% } %>
+    </select>
+  </div>
+  <div class="field">
+    <label class="sr-only">Unité</label>
+    <input type="text" name="free_unit" value="<%= it.row.unit || '' %>" placeholder="Unité" maxlength="32">
+  </div>
+  <div class="field attr-value">
+    <label class="sr-only">Valeur</label>
+    <input type="text" name="free_value" value="<%= it.row.raw %>" placeholder="Valeur (date : JJ/MM/AAAA, oui/non)" class="<%= it.error ? 'invalid' : '' %>">
+    <% if (it.error) { %><span class="err"><%= it.error %></span><% } %>
+  </div>
+  <button class="btn btn-sm btn-ghost" type="button" data-action="remove-row" aria-label="Retirer cette caractéristique">Retirer</button>
+</div>

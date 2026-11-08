@@ -1,0 +1,44 @@
+<% layout('/layout') %>
+<div class="page-head">
+  <h1>Historique</h1>
+  <form method="get" action="/historique" class="row">
+    <label for="h-type" class="sr-only">Type</label>
+    <select id="h-type" name="type">
+      <option value="">Tout</option>
+      <% for (const [k, v] of Object.entries(it.entities)) { %><option value="<%= k %>" <%= it.entity === k ? 'selected' : '' %>><%= v %></option><% } %>
+    </select>
+    <button class="btn" type="submit">Filtrer</button>
+  </form>
+</div>
+<section class="card">
+  <% if (!it.rows.length) { %><div class="empty">Aucun événement.</div><% } else { %>
+  <div class="table-wrap">
+  <table class="table responsive">
+    <thead><tr><th>Date</th><th>Événement</th><th>Utilisateur</th><th>Adresse IP</th></tr></thead>
+    <tbody>
+    <% for (const r of it.rows) { %>
+      <tr>
+        <td class="nowrap small muted"><%= it.h.dateTime(r.created_at) %></td>
+        <td data-label="Événement">
+          <% if (r.entity === 'objet' && r.entity_id && r.action !== 'suppression') { %><a href="/objets/<%= r.entity_id %>"><%= r.summary %></a>
+          <% } else if (r.entity === 'emplacement' && r.entity_id && r.action !== 'suppression') { %><a href="/emplacements/<%= r.entity_id %>"><%= r.summary %></a>
+          <% } else if (r.entity === 'categorie' && r.entity_id && r.action !== 'suppression') { %><a href="/categories/<%= r.entity_id %>"><%= r.summary %></a>
+          <% } else { %><%= r.summary %><% } %>
+          <%~ include('/_changes', { changes: r.changes }) %>
+        </td>
+        <td data-label="Utilisateur" class="small"><%= r.username || '' %></td>
+        <td data-label="IP" class="small mono muted"><%= r.ip || '' %></td>
+      </tr>
+    <% } %>
+    </tbody>
+  </table>
+  </div>
+  <% } %>
+</section>
+<% if (it.pages > 1) { %>
+<nav class="pager">
+  <% if (it.page > 1) { %><a class="btn btn-sm" href="/historique<%= it.h.qs({ type: it.entity, page: it.page - 1 }) %>">Plus récents</a><% } %>
+  <span class="muted small">Page <%= it.page %> sur <%= it.pages %></span>
+  <% if (it.page < it.pages) { %><a class="btn btn-sm" href="/historique<%= it.h.qs({ type: it.entity, page: it.page + 1 }) %>">Plus anciens</a><% } %>
+</nav>
+<% } %>

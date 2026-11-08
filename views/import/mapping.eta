@@ -1,0 +1,130 @@
+<% layout('/layout') %>
+<div class="page-head">
+  <div>
+    <a class="btn btn-back" href="/import">Retour à l’envoi du fichier</a>
+    <div class="crumbs"><a href="/import">Import</a> › <%= it.filename %></div>
+    <h1>Correspondances</h1>
+    <p class="muted small">Étape 2 sur 3. Après chaque changement de catégorie, de disposition ou de colonne vers Statut / Emplacement / Catégorie, cliquez sur « Actualiser » pour mettre à jour les correspondances de valeurs.</p>
+  </div>
+</div>
+<form method="post" action="/import/<%= it.bid %>" class="stack">
+  <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+  <input type="hidden" name="anchor" value="">
+
+  <% for (const s of it.sheets) { const c = s.cfg; const p = 's' + s.i + '_'; %>
+  <section class="card" id="s<%= s.i %>">
+    <div class="card-head">
+      <label class="check"><input type="checkbox" name="<%= p %>include" value="1" <%= c.include ? 'checked' : '' %>> <h2>Feuille « <%= s.sheet.name %> »</h2></label>
+      <span class="muted small"><%= it.h.plural(s.count, 'objet détecté', 'objets détectés') %></span>
+    </div>
+    <div class="card-body stack">
+      <div class="grid-3">
+        <div class="field">
+          <label for="<%= p %>layout">Disposition</label>
+          <select id="<%= p %>layout" name="<%= p %>layout" data-autosubmit data-anchor="<%= s.i %>">
+            <option value="rows" <%= c.layout === 'rows' ? 'selected' : '' %>>Un objet par ligne</option>
+            <option value="columns" <%= c.layout === 'columns' ? 'selected' : '' %>>Un objet par colonne</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="<%= p %>cat">Catégorie</label>
+          <select id="<%= p %>cat" name="<%= p %>cat" class="<%= c.include && !c.categoryId ? 'invalid' : '' %>">
+            <option value="">Aucune</option>
+            <% for (const x of it.cats) { %><option value="<%= x.id %>" <%= c.categoryId === x.id ? 'selected' : '' %>><%= it.h.indent(x.depth) %><%= x.name %></option><% } %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="<%= p %>loc">Emplacement par défaut</label>
+          <select id="<%= p %>loc" name="<%= p %>loc">
+            <option value="">Aucun</option>
+            <% for (const x of it.locs) { %><option value="<%= x.id %>" <%= c.locationId === x.id ? 'selected' : '' %>><%= it.h.indent(x.depth) %><%= x.name %></option><% } %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="<%= p %>status">Statut par défaut</label>
+          <select id="<%= p %>status" name="<%= p %>status">
+            <option value="">Sans statut</option>
+            <% for (const x of it.statuses) { %><option value="id:<%= x.id %>" <%= c.statusKey === 'id:' + x.id ? 'selected' : '' %>><%= x.name %></option><% } %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="<%= p %>brand">Marque imposée <span class="muted">(facultatif)</span></label>
+          <input id="<%= p %>brand" name="<%= p %>brand" type="text" value="<%= c.forcedBrand %>" maxlength="120" placeholder="ex. Apple">
+          <span class="hint">Avec « Marque + modèle », toute la valeur devient le modèle.</span>
+        </div>
+        <% if (c.layout === 'rows') { %>
+        <div class="field">
+          <span class="label">En-têtes</span>
+          <label class="check"><input type="checkbox" name="<%= p %>header" value="1" <%= c.header ? 'checked' : '' %> data-autosubmit data-anchor="<%= s.i %>"> La première ligne contient les titres</label>
+        </div>
+        <% } else { %><input type="hidden" name="<%= p %>header" value="<%= c.header ? '1' : '' %>"><% } %>
+      </div>
+
+      <div class="table-wrap">
+      <table class="table map-table">
+        <thead><tr><th><%= c.layout === 'columns' ? 'Intitulé (ligne)' : 'Colonne' %></th><th>Exemples</th><th>Devient</th></tr></thead>
+        <tbody>
+        <% c.columns.forEach((col, ci) => { %>
+          <tr>
+            <td class="title"><%= col.source %></td>
+            <td><div class="sample" title="<%= (s.samples[col.source] || []).join(' | ') %>"><%= (s.samples[col.source] || []).join(' | ') || '(vide)' %></div></td>
+            <td>
+              <select name="<%= p %>col<%= ci %>" aria-label="Destination de <%= col.source %>">
+                <% for (const t of it.targets) { %><option value="<%= t.value %>" <%= col.target === t.value ? 'selected' : '' %>><%= t.label %></option><% } %>
+                <% if (s.defs.length) { %>
+                <optgroup label="Caractéristique de la catégorie">
+                  <% for (const d of s.defs) { %><option value="attr:<%= d.name %>" <%= col.target === 'attr:' + d.name ? 'selected' : '' %>><%= d.name %> (<%= it.h.attrTypeLabel(d.type) %>)</option><% } %>
+                </optgroup>
+                <% } %>
+              </select>
+              <% const map = c.valueMaps[col.source]; if (map && Object.keys(map).length) { %>
+              <details class="mt" open>
+                <summary class="small">Correspondance des valeurs (<%= Object.keys(map).length %>)</summary>
+                <div class="vals mt">
+                  <% Object.entries(map).forEach(([v, key], vi) => { const name = p + 'map' + ci + '_' + vi; %>
+                    <label for="<%= name %>"><%= v %></label>
+                    <select id="<%= name %>" name="<%= name %>">
+                    <% if (col.target === 'status') { %>
+                      <option value="new" <%= key === 'new' ? 'selected' : '' %>>Créer le statut « <%= v %> »</option>
+                      <option value="" <%= key === '' ? 'selected' : '' %>>Statut par défaut de la feuille</option>
+                      <% for (const x of it.statuses) { %><option value="id:<%= x.id %>" <%= key === 'id:' + x.id ? 'selected' : '' %>><%= x.name %></option><% } %>
+                    <% } else if (col.target === 'location') { %>
+                      <option value="" <%= key === '' ? 'selected' : '' %>>Emplacement par défaut de la feuille</option>
+                      <% for (const x of it.locs) { %><option value="id:<%= x.id %>" <%= key === 'id:' + x.id ? 'selected' : '' %>><%= it.h.indent(x.depth) %><%= x.name %></option><% } %>
+                    <% } else { %>
+                      <option value="" <%= key === '' ? 'selected' : '' %>>Catégorie de la feuille</option>
+                      <% for (const x of it.cats) { %><option value="id:<%= x.id %>" <%= key === 'id:' + x.id ? 'selected' : '' %>><%= it.h.indent(x.depth) %><%= x.name %></option><% } %>
+                    <% } %>
+                    </select>
+                  <% }) %>
+                </div>
+              </details>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+  <% } %>
+
+  <section class="card">
+    <div class="card-head"><h2>Corrections automatiques</h2></div>
+    <div class="card-body">
+      <div class="field">
+        <label for="replacements">Remplacements appliqués aux noms, marques et modèles (une règle par ligne : <code>ancien => nouveau</code>)</label>
+        <textarea id="replacements" name="replacements" rows="3" placeholder="ex. Phillips => Philips"><%= it.replacements %></textarea>
+      </div>
+    </div>
+  </section>
+
+  <div class="sticky-actions card">
+    <a class="btn" href="/import">Annuler</a>
+    <div class="row">
+      <button class="btn" type="submit" name="action" value="refresh">Actualiser</button>
+      <button class="btn btn-primary" type="submit" name="action" value="preview">Voir l’aperçu</button>
+    </div>
+  </div>
+</form>

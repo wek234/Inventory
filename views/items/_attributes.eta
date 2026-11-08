@@ -1,0 +1,42 @@
+<div id="attributs" class="stack">
+  <% if (it.attrs.defs.length) { %>
+  <div class="form-grid">
+    <% for (const d of it.attrs.defs) { const err = it.errors['attr_' + d.id]; const fid = 'attr_' + d.id; %>
+    <div class="field">
+      <label for="<%= fid %>"><%= d.name %><% if (d.unit) { %> <span class="muted">(<%= d.unit %>)</span><% } %></label>
+      <% if (d.type === 'select') { %>
+        <select id="<%= fid %>" name="<%= fid %>" class="<%= err ? 'invalid' : '' %>">
+          <option value=""></option>
+          <% for (const o of d.optionList) { %><option value="<%= o %>" <%= d.raw === o ? 'selected' : '' %>><%= o %></option><% } %>
+          <% if (d.raw && !d.optionList.includes(d.raw)) { %><option value="<%= d.raw %>" selected><%= d.raw %> (hors liste)</option><% } %>
+        </select>
+      <% } else if (d.type === 'boolean') { %>
+        <select id="<%= fid %>" name="<%= fid %>">
+          <option value=""></option>
+          <option value="1" <%= d.raw === '1' ? 'selected' : '' %>>Oui</option>
+          <option value="0" <%= d.raw === '0' ? 'selected' : '' %>>Non</option>
+        </select>
+      <% } else if (d.type === 'date') { %>
+        <input id="<%= fid %>" name="<%= fid %>" type="date" value="<%= d.raw %>" class="<%= err ? 'invalid' : '' %>">
+      <% } else if (d.type === 'number') { %>
+        <input id="<%= fid %>" name="<%= fid %>" type="text" inputmode="decimal" value="<%= d.raw %>" class="<%= err ? 'invalid' : '' %>">
+      <% } else { %>
+        <input id="<%= fid %>" name="<%= fid %>" type="text" value="<%= d.raw %>" maxlength="5000" class="<%= err ? 'invalid' : '' %>">
+      <% } %>
+      <% if (err) { %><span class="err"><%= err %></span><% } %>
+    </div>
+    <% } %>
+  </div>
+  <% } else { %>
+  <p class="muted small">Aucune caractéristique définie pour cette catégorie. Vous pouvez en ajouter sur la page de la catégorie, ou ajouter des caractéristiques libres ci-dessous.</p>
+  <% } %>
+
+  <div>
+    <div class="label">Caractéristiques libres (propres à cet objet)</div>
+    <div class="attr-row attr-head"><span>Nom</span><span>Type</span><span>Unité</span><span>Valeur</span><span></span></div>
+    <div id="libres">
+      <% it.attrs.free.forEach((row, i) => { %><%~ include('/items/_free_row', { row, i, error: it.errors['free_' + i], freeTypes: it.freeTypes, h: it.h }) %><% }) %>
+    </div>
+    <button class="btn btn-sm" type="button" hx-get="/objets/formulaire/ligne-libre" hx-target="#libres" hx-swap="beforeend">Ajouter une caractéristique</button>
+  </div>
+</div>

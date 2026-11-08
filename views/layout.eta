@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr" data-theme="<%= it.theme %>">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= it.title || 'Inventaire' %> · Inventaire</title>
+<meta name="csrf-token" content="<%= it.csrf %>">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0}'>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/vendor/htmx.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<%
+  const nav = [
+    ['/', 'Tableau de bord'], ['/objets', 'Objets'], ['/emplacements', 'Emplacements'], ['/categories', 'Catégories'], ['/statuts', 'Statuts'],
+    null, ['/import', 'Import'], ['/export', 'Export'], ['/historique', 'Historique']
+  ];
+  const active = (href) => href === '/' ? it.path === '/' : (it.path === href || it.path.startsWith(href + '/'));
+  const themeLabel = { auto: 'Thème : automatique', light: 'Thème : clair', dark: 'Thème : sombre' }[it.theme];
+%>
+<header class="topbar">
+  <a class="brand" href="/">Inventaire</a>
+  <button class="btn btn-sm" type="button" data-action="menu" aria-label="Menu">Menu</button>
+</header>
+<div class="app">
+  <nav class="sidebar" aria-label="Navigation principale">
+    <a class="brand" href="/">Inventaire</a>
+    <div class="nav">
+    <% for (const n of nav) { %>
+      <% if (!n) { %><div class="nav-sep"></div><% } else { %>
+      <a href="<%= n[0] %>" class="<%= active(n[0]) ? 'active' : '' %>"><%= n[1] %></a>
+      <% } %>
+    <% } %>
+    </div>
+    <div class="sidebar-foot">
+      <div class="nav"><a href="/compte" class="<%= active('/compte') ? 'active' : '' %>">Mon compte <span class="muted small">(<%= it.user ? it.user.username : '' %>)</span></a></div>
+      <button class="btn btn-sm btn-ghost" type="button" data-action="theme" data-theme-label><%= themeLabel %></button>
+      <form method="post" action="/logout" class="inline">
+        <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+        <button class="btn btn-sm" type="submit">Se déconnecter</button>
+      </form>
+    </div>
+  </nav>
+  <main class="main" id="main">
+    <% if (it.flash) { %><div class="flash <%= it.flash.type %>" role="status"><%= it.flash.msg %></div><% } %>
+    <%~ it.body %>
+  </main>
+</div>
+</body>
+</html>

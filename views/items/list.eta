@@ -1,0 +1,68 @@
+<% layout('/layout') %>
+<div class="page-head">
+  <h1>Objets</h1>
+  <div class="actions">
+    <a class="btn btn-primary" href="/objets/nouveau">Nouvel objet</a>
+  </div>
+</div>
+
+<form id="filtres" class="card card-body" method="get" action="/objets"
+      hx-get="/objets" hx-target="#resultats" hx-push-url="true"
+      hx-trigger="input changed delay:350ms from:input[type=search], change from:select, submit">
+  <div class="filters">
+    <div class="field q">
+      <label for="f-q">Recherche</label>
+      <input id="f-q" type="search" name="q" value="<%= it.f.q %>" placeholder="Nom, marque, modèle, n° de série, notes, caractéristiques…">
+    </div>
+    <div class="field">
+      <label for="f-cat">Catégorie</label>
+      <select id="f-cat" name="cat">
+        <option value="">Toutes</option>
+        <% for (const c of it.cats) { %><option value="<%= c.id %>" <%= it.f.cat === c.id ? 'selected' : '' %>><%= it.h.indent(c.depth) %><%= c.name %></option><% } %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-loc">Emplacement</label>
+      <select id="f-loc" name="loc">
+        <option value="">Tous</option>
+        <% for (const l of it.locs) { %><option value="<%= l.id %>" <%= it.f.loc === l.id ? 'selected' : '' %>><%= it.h.indent(l.depth) %><%= l.name %></option><% } %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-status">Statut</label>
+      <select id="f-status" name="status">
+        <option value="">Tous</option>
+        <% for (const s of it.statuses) { %><option value="<%= s.id %>" <%= it.f.status === s.id ? 'selected' : '' %>><%= s.name %></option><% } %>
+        <option value="none" <%= it.f.status === 'none' ? 'selected' : '' %>>Sans statut</option>
+      </select>
+    </div>
+    <div class="attr">
+      <div class="field">
+        <label for="f-attr">Caractéristique</label>
+        <select id="f-attr" name="attr">
+          <option value="">Aucune</option>
+          <% for (const n of it.attrNames) { %><option value="<%= n %>" <%= it.f.attr === n ? 'selected' : '' %>><%= n %></option><% } %>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-op">Condition</label>
+        <select id="f-op" name="op">
+          <% for (const [k, v] of Object.entries(it.ops)) { %><option value="<%= k %>" <%= it.f.op === k ? 'selected' : '' %>><%= v %></option><% } %>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-val">Valeur</label>
+        <input id="f-val" type="search" name="val" value="<%= it.f.val %>" placeholder="ex. 16, DDR4, 2017-01-01">
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <label class="check"><input type="checkbox" name="lot" value="1" <%= it.f.lot ? 'checked' : '' %>> Lots uniquement</label>
+    <noscript><button class="btn btn-sm" type="submit">Filtrer</button></noscript>
+    <a class="btn btn-sm btn-ghost" href="/objets?reset=1">Réinitialiser les filtres et le tri</a>
+  </div>
+</form>
+
+<div id="resultats">
+<%~ include('/items/_results', it) %>
+</div>

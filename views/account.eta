@@ -1,0 +1,68 @@
+<% layout('/layout') %>
+<div class="page-head"><h1>Mon compte</h1></div>
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Mot de passe</h2></div>
+    <div class="card-body">
+      <form method="post" action="/compte/mot-de-passe" class="stack" autocomplete="off">
+        <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+        <input type="text" name="username" value="<%= it.account.username %>" autocomplete="username" class="hidden" aria-hidden="true" tabindex="-1">
+        <div class="field"><label for="p-cur">Mot de passe actuel</label><input id="p-cur" name="current" type="password" autocomplete="current-password" required></div>
+        <div class="field"><label for="p-new">Nouveau mot de passe</label><input id="p-new" name="new" type="password" autocomplete="new-password" minlength="<%= it.minLength %>" required><span class="hint"><%= it.minLength %> caractères minimum.</span></div>
+        <div class="field"><label for="p-conf">Confirmation</label><input id="p-conf" name="confirm" type="password" autocomplete="new-password" required></div>
+        <div class="field"><label for="p-code">Code TOTP</label><input id="p-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></div>
+        <div><button class="btn btn-primary" type="submit">Changer le mot de passe</button></div>
+        <p class="small muted">Vos autres sessions seront fermées.</p>
+      </form>
+    </div>
+  </section>
+  <div class="stack">
+    <section class="card">
+      <div class="card-head"><h2>Double authentification</h2></div>
+      <div class="card-body">
+        <p class="small muted">Pour changer de téléphone ou d’application : confirmez avec votre mot de passe et un code actuel, puis scannez le nouveau QR code.</p>
+        <form method="post" action="/compte/totp" class="stack">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+          <div class="grid-2">
+            <div class="field"><label for="t-cur">Mot de passe</label><input id="t-cur" name="current" type="password" autocomplete="current-password" required></div>
+            <div class="field"><label for="t-code">Code actuel</label><input id="t-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></div>
+          </div>
+          <div><button class="btn" type="submit">Reconfigurer le TOTP</button></div>
+        </form>
+      </div>
+    </section>
+    <% if (it.oidc.enabled) { %>
+    <section class="card">
+      <div class="card-head"><h2>SSO (<%= it.oidc.label %>)</h2></div>
+      <div class="card-body">
+        <% if (it.account.oidc_sub) { %>
+          <p class="small">Compte associé.</p>
+          <form method="post" action="/compte/oidc/dissocier" data-confirm="Dissocier le compte SSO ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-danger btn-sm" type="submit">Dissocier</button></form>
+        <% } else { %>
+          <p class="small muted">Aucun compte SSO associé.</p>
+          <a class="btn btn-sm" href="/compte/oidc/associer">Associer mon compte <%= it.oidc.label %></a>
+        <% } %>
+      </div>
+    </section>
+    <% } %>
+  </div>
+</div>
+<section class="card mt">
+  <div class="card-head"><h2>Sessions actives</h2></div>
+  <div class="table-wrap">
+  <table class="table responsive">
+    <thead><tr><th>Appareil</th><th>Adresse IP</th><th>Ouverte le</th><th>Dernière activité</th><th></th></tr></thead>
+    <tbody>
+    <% for (const s of it.sessions) { %>
+      <tr>
+        <td class="small"><%= (s.user_agent || 'Inconnu').slice(0, 90) %><% if (s.id === it.currentSession) { %> <span class="badge badge-bleu">cette session</span><% } %></td>
+        <td data-label="IP" class="mono small"><%= s.ip || '' %></td>
+        <td data-label="Ouverte le" class="small nowrap"><%= it.h.dateTime(s.created_at) %></td>
+        <td data-label="Activité" class="small nowrap"><%= it.h.dateTime(s.last_seen_at) %></td>
+        <td class="actions"><form method="post" action="/compte/sessions/<%= s.id %>/fermer" class="inline"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm" type="submit">Fermer</button></form></td>
+      </tr>
+    <% } %>
+    </tbody>
+  </table>
+  </div>
+</section>

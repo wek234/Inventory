@@ -1,0 +1,37 @@
+<% layout('/layout') %>
+<% const k = it.kind; %>
+<div class="page-head">
+  <h1><%= k.many %></h1>
+</div>
+<div class="cols">
+  <section class="card">
+    <div class="card-head"><h2>Arborescence</h2><span class="muted small">objets directs / avec sous-<%= k.one %>s</span></div>
+    <% if (!it.flat.length) { %><div class="empty">Aucun<%= k.one === 'catégorie' ? 'e' : '' %> <%= k.one %>.</div><% } else { %>
+    <ul class="tree">
+      <% for (const e of it.flat) { %>
+      <li class="d<%= Math.min(e.depth, 6) %>">
+        <a href="<%= k.base %>/<%= e.id %>"><%= e.name %></a>
+        <a class="count" href="/objets?<%= k.itemFilter %>=<%= e.id %>"><%= it.direct.get(e.id) || 0 %> / <%= it.total.get(e.id) || 0 %></a>
+      </li>
+      <% } %>
+    </ul>
+    <% } %>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Ajouter</h2></div>
+    <div class="card-body">
+      <form method="post" action="<%= k.base %>" class="stack">
+        <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+        <div class="field"><label for="n-name">Nom</label><input id="n-name" name="name" type="text" maxlength="120" required></div>
+        <div class="field">
+          <label for="n-parent">Dans</label>
+          <select id="n-parent" name="parent_id">
+            <option value="">(racine)</option>
+            <% for (const e of it.flat) { %><option value="<%= e.id %>"><%= it.h.indent(e.depth) %><%= e.name %></option><% } %>
+          </select>
+        </div>
+        <div><button class="btn btn-primary" type="submit">Créer</button></div>
+      </form>
+    </div>
+  </section>
+</div>

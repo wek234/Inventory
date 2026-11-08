@@ -1,0 +1,7 @@
+<% if (it.changes && typeof it.changes === 'object' && Object.keys(it.changes).length) { %>
+<ul class="changes">
+  <% for (const [k, c] of Object.entries(it.changes)) { %>
+  <li><strong><%= k %></strong> : <% if (c.avant !== null && c.avant !== undefined) { %><del><%= c.avant %></del><% } else { %><span>vide</span><% } %> → <% if (c.apres !== null && c.apres !== undefined) { %><ins><%= c.apres %></ins><% } else { %><span>vide</span><% } %></li>
+  <% } %>
+</ul>
+<% } %>

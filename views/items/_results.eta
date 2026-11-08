@@ -1,0 +1,50 @@
+<%
+  const sortLink = (key) => it.h.qs(it.params, { sort: key === 'name' ? null : key, dir: it.f.sort === key && it.f.dir === 'asc' ? 'desc' : null, page: null });
+  const arrow = (key) => it.f.sort === key ? (it.f.dir === 'asc' ? ' ↑' : ' ↓') : '';
+  const ariaSort = (key) => it.f.sort === key ? (it.f.dir === 'asc' ? 'ascending' : 'descending') : 'none';
+  const th = (key, label) => `<th aria-sort="${ariaSort(key)}"><a class="sort${it.f.sort === key ? ' active' : ''}" href="/objets${sortLink(key)}" hx-get="/objets${sortLink(key)}" hx-target="#resultats" hx-push-url="true">${label}${arrow(key)}</a></th>`;
+%>
+<input type="hidden" form="filtres" name="sort" value="<%= it.f.sort === 'name' ? '' : it.f.sort %>">
+<input type="hidden" form="filtres" name="dir" value="<%= it.f.dir === 'asc' ? '' : it.f.dir %>">
+<div class="toolbar">
+  <div class="muted"><%= it.h.plural(it.total, 'fiche', 'fiches') %><% if (it.units !== it.total) { %> · <%= it.h.plural(it.units, 'unité', 'unités') %><% } %></div>
+  <div class="row" data-selection-bar>
+    <span class="small muted" data-selection-count hidden></span>
+    <button class="btn btn-sm btn-ghost" type="button" data-action="clear-selection" hidden>Vider la sélection</button>
+    <a class="btn btn-sm" data-selection-link="/etiquettes" data-label-all="Étiquettes QR (liste filtrée)" data-label-sel="Étiquettes QR de la sélection" href="/etiquettes<%= it.h.qs(it.params) %>">Étiquettes QR (liste filtrée)</a>
+    <a class="btn btn-sm" data-selection-link="/export/objets.csv" data-label-all="CSV (liste filtrée)" data-label-sel="CSV de la sélection" href="/export/objets.csv<%= it.h.qs(it.params) %>">CSV (liste filtrée)</a>
+  </div>
+</div>
+<div class="card">
+<% if (!it.items.length) { %>
+  <div class="empty"><%= it.filtered ? 'Aucun objet ne correspond à ces filtres.' : 'Aucun objet pour l’instant.' %></div>
+<% } else { %>
+  <div class="table-wrap">
+  <table class="table responsive clickable">
+    <thead><tr>
+      <th class="sel"><input type="checkbox" data-select-page aria-label="Sélectionner tous les objets de la page"></th>
+      <%~ th('name', 'Nom') %><%~ th('brand', 'Marque / modèle') %><%~ th('category', 'Catégorie') %><%~ th('location', 'Emplacement') %><%~ th('status', 'Statut') %>
+    </tr></thead>
+    <tbody>
+    <% for (const i of it.items) { %>
+      <tr data-href="/objets/<%= i.id %>">
+        <td class="sel"><input type="checkbox" data-select-id="<%= i.id %>" aria-label="Sélectionner <%= i.name %>"></td>
+        <td><a class="title" href="/objets/<%= i.id %>"><%= i.name %></a><% if (i.quantity > 1) { %> <span class="badge badge-outline">Lot × <%= it.h.num(i.quantity) %></span><% } %><% if (i.serial) { %><div class="muted small mono"><%= i.serial %></div><% } %></td>
+        <td data-label="Marque / modèle"><%= [i.brand, i.model].filter(Boolean).join(' ') %></td>
+        <td data-label="Catégorie"><span title="<%= i.categoryPath || '' %>"><%= i.categoryName || '' %></span></td>
+        <td data-label="Emplacement"><%= i.locationPath || '' %></td>
+        <td data-label="Statut"><%~ include('/_status', { name: i.status_name, color: i.status_color }) %></td>
+      </tr>
+    <% } %>
+    </tbody>
+  </table>
+  </div>
+<% } %>
+</div>
+<% if (it.pages > 1) { %>
+<nav class="pager" aria-label="Pagination">
+  <% if (it.page > 1) { %><a class="btn btn-sm" href="/objets<%= it.h.qs(it.params, { page: it.page - 1 }) %>">Précédent</a><% } %>
+  <span class="muted small">Page <%= it.page %> sur <%= it.pages %></span>
+  <% if (it.page < it.pages) { %><a class="btn btn-sm" href="/objets<%= it.h.qs(it.params, { page: it.page + 1 }) %>">Suivant</a><% } %>
+</nav>
+<% } %>

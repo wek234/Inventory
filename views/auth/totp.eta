@@ -1,0 +1,15 @@
+<% layout('/auth-layout', { ...it, title: 'Vérification' }) %>
+<div>
+  <h1>Vérification en deux étapes</h1>
+  <p class="muted">Saisissez le code à 6 chiffres affiché par votre application d’authentification.</p>
+</div>
+<% if (it.error) { %><div class="flash erreur" role="alert"><%= it.error %></div><% } %>
+<form method="post" action="/login/totp" class="stack">
+  <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+  <div class="field">
+    <label for="code">Code</label>
+    <input id="code" name="code" type="text" class="code-input" inputmode="numeric" pattern="[0-9 ]{6,7}" autocomplete="one-time-code" required autofocus maxlength="7">
+  </div>
+  <button class="btn btn-primary" type="submit">Valider</button>
+</form>
+<a class="small" href="/login">Recommencer la connexion</a>
