@@ -3,6 +3,7 @@ import { sql } from 'kysely';
 import { db } from '../db.js';
 import { Tree, descendantIds } from './tree.js';
 import { escapeLike, id as toId } from './forms.js';
+import { wordStart, wordStartPattern } from './search.js';
 
 export interface ItemFilters {
   q: string;
@@ -13,7 +14,7 @@ export interface ItemFilters {
   op: 'eq' | 'contains' | 'gt' | 'lt' | 'exists' | 'missing';
   val: string;
   lot: boolean;
-  sort: 'name' | 'brand' | 'category' | 'location' | 'status' | 'updated' | 'created';
+  sort: 'name' | 'brand' | 'model' | 'category' | 'location' | 'status' | 'updated' | 'created';
   dir: 'asc' | 'desc';
   ids: number[]; // sélection explicite (étiquettes, export) : remplace les autres filtres
   manque: '' | 'photo' | 'serie' | 'carac'; // fiches incomplètes
@@ -31,6 +32,7 @@ export const MANQUES: Record<Exclude<ItemFilters['manque'], ''>, string> = {
 export const SORTS: Record<ItemFilters['sort'], string> = {
   name: 'Nom',
   brand: 'Marque',
+  model: 'Modèle',
   category: 'Catégorie',
   location: 'Emplacement',
   status: 'Statut',
@@ -131,15 +133,15 @@ export function buildItemQuery(f: ItemFilters, catTree: Tree, locTree: Tree) {
   if (f.ids.length) return qb.where('items.id', 'in', f.ids);
 
   if (f.q) {
-    const like = `%${escapeLike(f.q)}%`;
+    const pat = wordStartPattern(f.q);
     qb = qb.where((eb) =>
       eb.or([
-        eb('items.name', 'like', like),
-        eb('items.brand', 'like', like),
-        eb('items.model', 'like', like),
-        eb('items.serial', 'like', like),
-        eb('items.notes', 'like', like),
-        eb.exists(eb.selectFrom('item_values as sv').select('sv.id').whereRef('sv.item_id', '=', 'items.id').where('sv.value_text', 'like', like)),
+        wordStart(eb.ref('items.name'), pat),
+        wordStart(eb.ref('items.brand'), pat),
+        wordStart(eb.ref('items.model'), pat),
+        wordStart(eb.ref('items.serial'), pat),
+        wordStart(eb.ref('items.notes'), pat),
+        eb.exists(eb.selectFrom('item_values as sv').select('sv.id').whereRef('sv.item_id', '=', 'items.id').where(wordStart(sql.ref('sv.value_text'), pat))),
       ]),
     );
   }
@@ -219,6 +221,9 @@ export function orderItems(qb: any, f: ItemFilters, catTree?: Tree, locTree?: Tr
       break;
     case 'brand':
       qb = qb.orderBy(sql`(items.brand IS NULL OR items.brand = '')`, 'asc').orderBy('items.brand', f.dir).orderBy('items.model', f.dir);
+      break;
+    case 'model':
+      qb = qb.orderBy(sql`(items.model IS NULL OR items.model = '')`, 'asc').orderBy('items.model', f.dir).orderBy('items.brand', f.dir);
       break;
     case 'updated':
       qb = qb.orderBy('items.updated_at', f.dir);

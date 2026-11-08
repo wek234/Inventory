@@ -27,7 +27,7 @@
     <thead><tr>
       <% if (it.canEdit) { %><th class="sel"><input type="checkbox" data-select-page aria-label="Sélectionner tous les objets de la page"></th><% } %>
       <th class="thumb-col"><span class="sr-only">Photo</span></th>
-      <%~ th('name', 'Nom') %><%~ th('brand', 'Marque / modèle') %><%~ th('category', 'Catégorie') %><%~ th('location', 'Emplacement') %><%~ th('status', 'Statut') %>
+      <%~ th('name', 'Nom') %><%~ th('brand', 'Marque') %><%~ th('model', 'Modèle') %><%~ th('category', 'Catégorie') %><%~ th('location', 'Emplacement') %><%~ th('status', 'Statut') %>
     </tr></thead>
     <tbody>
     <% for (const i of it.items) { %>
@@ -35,7 +35,8 @@
         <% if (it.canEdit) { %><td class="sel"><input type="checkbox" data-select-id="<%= i.id %>" aria-label="Sélectionner <%= i.name %>"></td><% } %>
         <td class="thumb-col"><% if (i.thumb_id) { %><img class="thumb" src="/fichiers/<%= i.thumb_id %>/vignette" alt="" width="40" height="40" loading="lazy"><% } else { %><span class="thumb thumb-empty"><%~ it.h.icon('items') %></span><% } %></td>
         <td><a class="title" href="/objets/<%= i.id %>"><%= i.name %></a><% if (i.quantity > 1) { %> <span class="badge badge-outline">Lot × <%= it.h.num(i.quantity) %></span><% } %><% if (i.serial) { %><div class="muted small mono"><%= i.serial %></div><% } %><% if (i.person_name) { %><div class="small"><span class="muted">Attribué à</span> <%= i.person_name %></div><% } %></td>
-        <td data-label="Marque / modèle"><%= [i.brand, i.model].filter(Boolean).join(' ') %></td>
+        <td data-label="Marque"><%= i.brand || '' %></td>
+        <td data-label="Modèle"><%= i.model || '' %></td>
         <td data-label="Catégorie"><span title="<%= i.categoryPath || '' %>"><%= i.categoryName || '' %></span></td>
         <td data-label="Emplacement"><%= i.locationPath || '' %></td>
         <td data-label="Statut"><%~ include('/_status', { name: i.status_name, color: i.status_color }) %></td>

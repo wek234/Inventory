@@ -55,7 +55,15 @@ Les cookies de session ne circulent qu'en HTTPS : passez toujours par l'adresse 
 **Autres comptes** : Administration > Comptes. Deux rôles :
 
 - **Administrateur** : tous les droits ;
-- **Lecture seule** : consulte tout l'inventaire (objets, emplacements, catégories, statuts, personnes, historique), sans rien pouvoir modifier, ni exporter, ni imprimer d'étiquettes, ni accéder à l'administration.
+- **Lecture seule** : tableau de bord et objets uniquement (liste, recherche, fiches), sans rien pouvoir modifier, ni exporter, ni imprimer d'étiquettes. Les espaces Paramètres et Administration, l'historique et les outils lui sont fermés.
+
+**Organisation du menu** :
+
+- **Tableau de bord**, **Objets** : l'usage quotidien ;
+- **Corbeille** ;
+- **Paramètres** : catégories (et leurs caractéristiques), emplacements, statuts ;
+- **Administration** : système (versions, mises à jour, alertes), comptes, personnes ;
+- **Outils** (groupe repliable, retenu ouvert ou fermé) : rangement, historique, import, export.
 
 Chaque compte configure son TOTP à sa première connexion. L'application garde toujours au moins un administrateur.
 
@@ -169,10 +177,12 @@ Le conteneur doit pouvoir joindre `api.telegram.org`. Une nouvelle version n'est
 
 ## 10. Fonctions du quotidien
 
+- **Recherche** : le texte est cherché au **début des mots**, sans tenir compte des majuscules ni des accents : « hp » trouve « HP ProBook » ou « HPs HS » mais pas « touchpad », « optip » trouve « Optiplex », « ecran » trouve « Écran ». La recherche simple propose catégorie, emplacement et statut ; « Recherche avancée » ajoute caractéristique, attribution, complétude, lots et étiquettes (le panneau s'ouvre de lui-même quand un de ces filtres est actif).
 - **Recherche rapide** : `Ctrl+K` (ou `⌘K`) depuis n'importe quelle page : objets, emplacements, catégories, personnes et pages. Flèches pour choisir, Entrée pour ouvrir.
 - **Modification en masse** : cochez des objets dans la liste, puis « Modifier la sélection » pour changer d'un coup le statut, l'emplacement, la catégorie ou la personne.
 - **Dupliquer** : sur une fiche, crée un nouvel objet prérempli (caractéristiques comprises, sauf le n° de série).
-- **Personnes** : des personnes sans compte, à qui attribuer un objet (« attribué à » et date). Filtre « Attribué à » dans la liste des objets.
+- **Personnes** (Administration > Personnes) : des personnes sans compte, à qui attribuer un objet (« attribué à » et date). On crée les personnes uniquement dans cet espace ; une fiche objet propose de choisir parmi elles, et la page d'une personne permet de lui attribuer ou de lui retirer des objets. Filtre « Attribution » dans la recherche avancée.
+- **Page d'une catégorie** : les caractéristiques héritées sont regroupées par catégorie d'origine. Les caractéristiques propres, le nom, la catégorie parente et la description se modifient librement puis s'enregistrent d'un seul bouton « Enregistrer la catégorie » ; « Ajouter une caractéristique » insère une ligne enregistrée avec le reste. Si une ligne est invalide (nom déjà utilisé dans la branche, liste sans option…), rien n'est enregistré et la page revient avec la saisie et les erreurs. Le bouton « Supprimer » d'une ligne agit immédiatement, après confirmation.
 - **Photo principale** : l'étoile sur une photo la choisit ; elle s'affiche en vignette dans la liste et en tête de fiche.
 - **Chronologie** : sur chaque fiche, modifications, déplacements, attributions et interventions dans l'ordre.
 - **Caractéristique « Lien »** : adresse web cliquable (pilotes, manuel en ligne) ; seules les adresses `http(s)` sont acceptées.

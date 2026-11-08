@@ -1,4 +1,5 @@
 <% layout('/layout') %>
+<%~ include('/_subnav', { space: 'administration', path: it.path, h: it.h }) %>
 <div class="page-head"><h1>Personnes</h1></div>
 <div class="cols">
   <section class="card">

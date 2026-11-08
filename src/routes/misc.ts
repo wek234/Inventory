@@ -128,6 +128,9 @@ export async function miscRoutes(app: FastifyInstance) {
     });
   });
 
+  // ---- Espace Paramètres : ouvre le premier onglet ----
+  app.get('/parametres', async (req, reply) => reply.redirect('/categories'));
+
   // ---- Statuts ----
   app.get('/statuts', async (req, reply) => {
     const rows = await db

@@ -380,6 +380,66 @@
     });
   }
 
+  // ---------- Groupe « Outils » du menu : ouvert ou replié, retenu dans ce navigateur ----------
+  document.querySelectorAll('details[data-nav-group]').forEach(function (d) {
+    var key = 'inv_nav_' + d.dataset.navGroup;
+    if (!d.hasAttribute('data-forced')) {
+      try { if (localStorage.getItem(key) === '1') d.open = true; } catch (e) {}
+    }
+    d.addEventListener('toggle', function () {
+      try { localStorage.setItem(key, d.open ? '1' : '0'); } catch (e) {}
+    });
+  });
+
+  // ---------- Page catégorie : nouvelles lignes de caractéristiques ----------
+  var addDef = document.querySelector('[data-action=add-def]');
+  var newDefIndex = 100 + document.querySelectorAll('#new-defs [data-def-row]').length;
+  if (addDef) {
+    addDef.addEventListener('click', function () {
+      var tpl = document.getElementById('def-template');
+      var box = document.getElementById('new-defs');
+      if (!tpl || !box) return;
+      newDefIndex += 1;
+      var holder = document.createElement('div');
+      holder.innerHTML = tpl.innerHTML.replace(/__N__/g, String(newDefIndex));
+      var node = holder.firstElementChild;
+      var empty = document.querySelector('[data-empty-defs]');
+      if (empty) empty.remove();
+      box.appendChild(node);
+      var first = node.querySelector('input[type=text]');
+      if (first) first.focus();
+      markDirty();
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var rm = e.target.closest('[data-action=remove-new-def]');
+    if (rm) rm.closest('.def-row').remove();
+  });
+  // Le type choisi affiche le bon champ (unité pour un nombre, options pour une liste).
+  document.addEventListener('change', function (e) {
+    var sel = e.target.closest('select[data-def-type]');
+    if (sel) sel.closest('[data-def-row]').dataset.type = sel.value;
+  });
+  // Avertit avant de quitter la page avec des modifications non enregistrées.
+  var dirtyForm = document.querySelector('form[data-dirty-check]');
+  var dirty = false;
+  function markDirty() { dirty = true; }
+  if (dirtyForm) {
+    dirtyForm.addEventListener('input', markDirty);
+    dirtyForm.addEventListener('change', markDirty);
+    dirtyForm.addEventListener('submit', function () { dirty = false; });
+    // Suppression immédiate d'une caractéristique : prévient si d'autres modifications seraient perdues.
+    document.addEventListener('submit', function (e) {
+      if (e.target.matches('form[data-def-delete]') && !e.defaultPrevented) dirty = false;
+    });
+    document.querySelectorAll('form[data-def-delete]').forEach(function (f) {
+      var base = f.dataset.confirm;
+      document.addEventListener('input', function () { if (dirty) f.dataset.confirm = base + '\n\nLes autres modifications non enregistrées de la page seront perdues.'; });
+      document.addEventListener('change', function () { if (dirty) f.dataset.confirm = base + '\n\nLes autres modifications non enregistrées de la page seront perdues.'; });
+    });
+    window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+  }
+
   // PWA : enregistrement du service worker (fichiers statiques et page hors ligne uniquement).
   if ('serviceWorker' in navigator && window.isSecureContext) {
     window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });

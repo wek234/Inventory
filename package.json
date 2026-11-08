@@ -1,6 +1,6 @@
 {
   "name": "inventory",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Inventaire de matériel auto-hébergé",
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",

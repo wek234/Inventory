@@ -1,11 +1,13 @@
 // Personnes et attributions, corbeille, modification en masse, recherche rapide (Ctrl+K), mode rangement (scan QR).
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db.js';
+import { sql } from 'kysely';
+import { wordStart, wordStartPattern, matchesWordStart } from '../services/search.js';
 import { config } from '../config.js';
 import { render, redirect, setFlash } from '../views.js';
 import { loadTree } from '../services/tree.js';
 import { audit } from '../services/audit.js';
-import { Body, str, optStr, id, escapeLike } from '../services/forms.js';
+import { Body, str, optStr, id } from '../services/forms.js';
 import { removeStoredFiles } from './attachments.js';
 
 const TRASH_DAYS = 30;
@@ -71,9 +73,17 @@ export async function featureRoutes(app: FastifyInstance) {
       .orderBy('items.assigned_at', 'desc')
       .orderBy('items.name')
       .execute();
+    const allItems = await db
+      .selectFrom('items')
+      .select(['id', 'name', 'brand', 'model', 'assigned_person_id'])
+      .where('deleted_at', 'is', null)
+      .orderBy('name')
+      .execute();
     return render(req, reply, 'people/show', {
       title: person.name,
       person,
+      allItems: allItems.filter((i) => i.assigned_person_id !== person.id),
+      today: new Date().toISOString().slice(0, 10),
       items: items.map((i) => ({ ...i, locationPath: i.location_id ? locs.byId.get(i.location_id)?.path : null })),
     });
   });
@@ -93,6 +103,41 @@ export async function featureRoutes(app: FastifyInstance) {
       if (name !== person.name) await audit(req, 'personne', person.id, 'modification', `Personne renommée : ${person.name} → ${name}`);
       setFlash(reply, 'ok', 'Enregistré.');
     }
+    return redirect(req, reply, `/personnes/${person.id}`);
+  });
+
+  // Attribuer un objet depuis la page d'une personne. L'objet se choisit par « #id nom » (liste de suggestions).
+  app.post('/personnes/:id/attribuer', async (req, reply) => {
+    const pid = id((req.params as Body).id);
+    const person = pid ? await db.selectFrom('people').select(['id', 'name']).where('id', '=', pid).executeTakeFirst() : undefined;
+    if (!person) return reply.callNotFound();
+    const body = req.body as Body;
+    const m = /^#?(\d+)/.exec(str(body, 'item', 300));
+    const item = m ? await db.selectFrom('items').select(['id', 'name', 'assigned_person_id']).where('id', '=', Number(m[1])).where('deleted_at', 'is', null).executeTakeFirst() : undefined;
+    if (!item) {
+      setFlash(reply, 'erreur', 'Choisissez un objet dans la liste proposée.');
+      return redirect(req, reply, `/personnes/${person.id}`);
+    }
+    const date = str(body, 'date', 10);
+    const okDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date));
+    const before = item.assigned_person_id && item.assigned_person_id !== person.id ? await db.selectFrom('people').select('name').where('id', '=', item.assigned_person_id).executeTakeFirst() : undefined;
+    await db.updateTable('items').set({ assigned_person_id: person.id, assigned_at: okDate ? date : new Date().toISOString().slice(0, 10) }).where('id', '=', item.id).execute();
+    await audit(req, 'objet', item.id, 'attribution', `Attribué à ${person.name}${before ? ` (au lieu de ${before.name})` : ''}`);
+    setFlash(reply, 'ok', `« ${item.name} » attribué à ${person.name}${before ? ` (retiré à ${before.name})` : ''}.`);
+    return redirect(req, reply, `/personnes/${person.id}`);
+  });
+
+  // Retirer une attribution depuis la page d'une personne.
+  app.post('/personnes/:id/retirer/:item', async (req, reply) => {
+    const params = req.params as Body;
+    const pid = id(params.id);
+    const itemId = id(params.item);
+    const person = pid ? await db.selectFrom('people').select(['id', 'name']).where('id', '=', pid).executeTakeFirst() : undefined;
+    const item = itemId ? await db.selectFrom('items').select(['id', 'name']).where('id', '=', itemId).where('assigned_person_id', '=', pid ?? 0).executeTakeFirst() : undefined;
+    if (!person || !item) return reply.callNotFound();
+    await db.updateTable('items').set({ assigned_person_id: null, assigned_at: null }).where('id', '=', item.id).execute();
+    await audit(req, 'objet', item.id, 'attribution', `Attribution retirée (était : ${person.name})`);
+    setFlash(reply, 'ok', `« ${item.name} » n’est plus attribué à ${person.name}.`);
     return redirect(req, reply, `/personnes/${person.id}`);
   });
 
@@ -228,30 +273,33 @@ export async function featureRoutes(app: FastifyInstance) {
     const q = str(req.query as Body, 'q', 100);
     const out: { type: string; label: string; sub?: string; href: string }[] = [];
     if (q) {
-      const like = `%${escapeLike(q)}%`;
+      const pat = wordStartPattern(q);
+      const admin = req.user?.role === 'admin';
       const [cats, locs] = await Promise.all([loadTree('categories'), loadTree('locations')]);
       const items = await db
         .selectFrom('items')
         .select(['id', 'name', 'brand', 'model', 'serial', 'location_id'])
         .where('deleted_at', 'is', null)
-        .where((eb) => eb.or([eb('name', 'like', like), eb('brand', 'like', like), eb('model', 'like', like), eb('serial', 'like', like)]))
+        .where((eb) => eb.or([wordStart(eb.ref('name'), pat), wordStart(eb.ref('brand'), pat), wordStart(eb.ref('model'), pat), wordStart(eb.ref('serial'), pat)]))
         .orderBy('name')
         .limit(8)
         .execute();
       for (const i of items) out.push({ type: 'Objet', label: i.name, sub: [[i.brand, i.model].filter(Boolean).join(' '), i.location_id ? locs.byId.get(i.location_id)?.path : ''].filter(Boolean).join(' · '), href: `/objets/${i.id}` });
-      const n = q.toLowerCase();
-      for (const l of locs.flat.filter((e) => e.name.toLowerCase().includes(n)).slice(0, 4)) out.push({ type: 'Emplacement', label: l.name, sub: l.path, href: `/emplacements/${l.id}` });
-      for (const c of cats.flat.filter((e) => e.name.toLowerCase().includes(n)).slice(0, 4)) out.push({ type: 'Catégorie', label: c.name, sub: c.path, href: `/categories/${c.id}` });
-      const people = await db.selectFrom('people').select(['id', 'name']).where('name', 'like', like).orderBy('name').limit(4).execute();
-      for (const p of people) out.push({ type: 'Personne', label: p.name, href: `/personnes/${p.id}` });
-      const admin = req.user?.role === 'admin';
+      // Un compte en lecture seule n'accède qu'aux objets : emplacements et catégories ouvrent la liste filtrée.
+      for (const l of locs.flat.filter((e) => matchesWordStart(e.name, q)).slice(0, 4)) out.push({ type: 'Emplacement', label: l.name, sub: l.path, href: admin ? `/emplacements/${l.id}` : `/objets?loc=${l.id}` });
+      for (const c of cats.flat.filter((e) => matchesWordStart(e.name, q)).slice(0, 4)) out.push({ type: 'Catégorie', label: c.name, sub: c.path, href: admin ? `/categories/${c.id}` : `/objets?cat=${c.id}` });
+      if (admin) {
+        const people = await db.selectFrom('people').select(['id', 'name']).where(wordStart(sql.ref('name'), pat)).orderBy('name').limit(4).execute();
+        for (const p of people) out.push({ type: 'Personne', label: p.name, href: `/personnes/${p.id}` });
+      }
       const pages: [string, string, boolean][] = [
-        ['Tableau de bord', '/', true], ['Objets', '/objets', true], ['Nouvel objet', '/objets/nouveau', admin], ['Emplacements', '/emplacements', true],
-        ['Catégories', '/categories', true], ['Statuts', '/statuts', true], ['Personnes', '/personnes', true], ['Rangement (scanner)', '/rangement', admin],
-        ['Import', '/import', admin], ['Export', '/export', admin], ['Historique', '/historique', true], ['Corbeille', '/corbeille', admin],
-        ['Administration', '/administration', admin], ['Comptes', '/administration/comptes', admin], ['Mon compte', '/compte', true],
+        ['Tableau de bord', '/', true], ['Objets', '/objets', true], ['Nouvel objet', '/objets/nouveau', admin],
+        ['Paramètres', '/parametres', admin], ['Catégories', '/categories', admin], ['Emplacements', '/emplacements', admin], ['Statuts', '/statuts', admin],
+        ['Administration', '/administration', admin], ['Comptes', '/administration/comptes', admin], ['Personnes', '/personnes', admin],
+        ['Rangement (scanner)', '/rangement', admin], ['Historique', '/historique', admin], ['Import', '/import', admin], ['Export', '/export', admin],
+        ['Corbeille', '/corbeille', admin], ['Mon compte', '/compte', true],
       ];
-      for (const [label, href, ok] of pages) if (ok && label.toLowerCase().includes(n)) out.push({ type: 'Page', label, href });
+      for (const [label, href, ok] of pages) if (ok && matchesWordStart(label, q)) out.push({ type: 'Page', label, href });
     }
     return reply.header('Cache-Control', 'no-store').send({ resultats: out.slice(0, 20) });
   });

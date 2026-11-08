@@ -9,10 +9,11 @@
 <form id="filtres" class="card card-body" method="get" action="/objets"
       hx-get="/objets" hx-target="#resultats" hx-push-url="true"
       hx-trigger="input changed delay:350ms from:(#filtres input[type=search]), change from:(#filtres select), change from:(#filtres input[type=checkbox]), submit">
+  <% const advCount = [it.f.attr, it.f.lot, it.f.etiquette, it.f.personne, it.f.manque].filter(Boolean).length; %>
   <div class="filters">
     <div class="field q">
       <label for="f-q">Recherche</label>
-      <input id="f-q" type="search" name="q" value="<%= it.f.q %>" placeholder="Nom, marque, modèle, n° de série, notes, caractéristiques…">
+      <input id="f-q" type="search" name="q" value="<%= it.f.q %>" placeholder="Nom, marque, modèle, n° de série…">
     </div>
     <div class="field">
       <label for="f-cat">Catégorie</label>
@@ -38,7 +39,11 @@
         <option value="none" <%= it.f.status === 'none' ? 'selected' : '' %>>Sans statut</option>
       </select>
     </div>
-    <div class="attr">
+  </div>
+  <div class="filters-sub">
+  <details class="advanced"<%~ advCount ? ' open' : '' %>>
+    <summary><span class="adv-caret" aria-hidden="true"></span>Recherche avancée<% if (advCount) { %> <span class="badge badge-bleu"><%= advCount %></span><% } %></summary>
+    <div class="adv-grid">
       <div class="field">
         <label for="f-attr">Caractéristique</label>
         <select id="f-attr" name="attr">
@@ -56,26 +61,32 @@
         <label for="f-val">Valeur</label>
         <input id="f-val" type="search" name="val" value="<%= it.f.val %>" placeholder="ex. 16, DDR4, 2017-01-01">
       </div>
+      <div class="field">
+        <label for="f-personne">Attribution</label>
+        <select id="f-personne" name="personne">
+          <option value="">Toutes</option>
+          <option value="any" <%= it.f.personne === 'any' ? 'selected' : '' %>>Attribués à quelqu’un</option>
+          <option value="none" <%= it.f.personne === 'none' ? 'selected' : '' %>>Non attribués</option>
+          <% for (const p of it.people) { %><option value="<%= p.id %>" <%= it.f.personne === p.id ? 'selected' : '' %>>Attribués à <%= p.name %></option><% } %>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-manque">Complétude</label>
+        <select id="f-manque" name="manque">
+          <option value="">Toutes les fiches</option>
+          <% for (const [k, v] of Object.entries(it.manques)) { %><option value="<%= k %>" <%= it.f.manque === k ? 'selected' : '' %>><%= v %></option><% } %>
+        </select>
+      </div>
+      <div class="field adv-checks">
+        <span class="label">Autres</span>
+        <label class="check"><input type="checkbox" name="lot" value="1" <%= it.f.lot ? 'checked' : '' %>> Lots uniquement</label>
+        <label class="check"><input type="checkbox" name="etiquette" value="jamais" <%= it.f.etiquette ? 'checked' : '' %>> Étiquette jamais imprimée</label>
+      </div>
     </div>
+  </details>
+  <a class="btn btn-sm btn-ghost filters-reset" href="/objets?reset=1">Réinitialiser les filtres et le tri</a>
   </div>
-  <div class="row">
-    <label class="check"><input type="checkbox" name="lot" value="1" <%= it.f.lot ? 'checked' : '' %>> Lots uniquement</label>
-    <label class="check"><input type="checkbox" name="etiquette" value="jamais" <%= it.f.etiquette ? 'checked' : '' %>> Étiquette jamais imprimée</label>
-    <label for="f-manque" class="sr-only">Complétude</label>
-    <label for="f-personne" class="sr-only">Attribution</label>
-    <select id="f-personne" name="personne" class="w-auto">
-      <option value="">Toutes les attributions</option>
-      <option value="any" <%= it.f.personne === 'any' ? 'selected' : '' %>>Attribués à quelqu’un</option>
-      <option value="none" <%= it.f.personne === 'none' ? 'selected' : '' %>>Non attribués</option>
-      <% for (const p of it.people) { %><option value="<%= p.id %>" <%= it.f.personne === p.id ? 'selected' : '' %>>Attribués à <%= p.name %></option><% } %>
-    </select>
-    <select id="f-manque" name="manque" class="w-auto">
-      <option value="">Toutes les fiches</option>
-      <% for (const [k, v] of Object.entries(it.manques)) { %><option value="<%= k %>" <%= it.f.manque === k ? 'selected' : '' %>><%= v %></option><% } %>
-    </select>
-    <noscript><button class="btn btn-sm" type="submit">Filtrer</button></noscript>
-    <a class="btn btn-sm btn-ghost" href="/objets?reset=1">Réinitialiser les filtres et le tri</a>
-  </div>
+  <noscript><button class="btn btn-sm" type="submit">Filtrer</button></noscript>
 </form>
 
 <div id="resultats">

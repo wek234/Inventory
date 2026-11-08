@@ -1,4 +1,5 @@
 <% layout('/layout') %>
+<%~ include('/_subnav', { space: 'parametres', path: it.path, h: it.h }) %>
 <% const k = it.kind; %>
 <div class="page-head">
   <h1><%= k.many %></h1>

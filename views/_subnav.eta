@@ -1,0 +1,12 @@
+<%
+  const spaces = {
+    parametres: { title: 'Paramètres', tabs: [['/categories', 'Catégories', 'categories'], ['/emplacements', 'Emplacements', 'locations'], ['/statuts', 'Statuts', 'statuses']] },
+    administration: { title: 'Administration', tabs: [['/administration', 'Système', 'admin', true], ['/administration/comptes', 'Comptes', 'account'], ['/personnes', 'Personnes', 'people']] },
+  };
+  const sp = spaces[it.space];
+  const on = (t) => t[3] ? it.path === t[0] : (it.path === t[0] || it.path.startsWith(t[0] + '/'));
+%>
+<div class="space-title"><%= sp.title %></div>
+<nav class="subnav" aria-label="<%= sp.title %>">
+  <% for (const t of sp.tabs) { %><a href="<%= t[0] %>" class="<%= on(t) ? 'active' : '' %>"<%~ on(t) ? ' aria-current="page"' : '' %>><%~ it.h.icon(t[2]) %><%= t[1] %></a><% } %>
+</nav>

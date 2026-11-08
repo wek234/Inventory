@@ -484,17 +484,11 @@ export async function itemRoutes(app: FastifyInstance) {
       setFlash(reply, 'ok', 'Attribution retirée.');
       return redirect(req, reply, `/objets/${it.id}#attribution`);
     }
-    let personId = id(body.person_id);
-    const newName = str(body, 'new_person', 120);
-    if (!personId && newName) {
-      const existing = await db.selectFrom('people').select('id').where('name', '=', newName).executeTakeFirst();
-      personId = existing ? existing.id : Number((await db.insertInto('people').values({ name: newName }).executeTakeFirstOrThrow()).insertId);
-      if (!existing) await audit(req, 'personne', personId, 'creation', `Personne « ${newName} » créée`);
-    }
+    const personId = id(body.person_id);
     const person = personId ? await db.selectFrom('people').select(['id', 'name']).where('id', '=', personId).executeTakeFirst() : undefined;
     const date = str(body, 'date', 10);
     if (!person) {
-      setFlash(reply, 'erreur', 'Choisissez une personne ou saisissez un nouveau nom.');
+      setFlash(reply, 'erreur', 'Choisissez une personne.');
       return redirect(req, reply, `/objets/${it.id}#attribution`);
     }
     const okDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date));

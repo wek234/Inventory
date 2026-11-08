@@ -1,4 +1,5 @@
 <% layout('/layout') %>
+<%~ include('/_subnav', { space: 'administration', path: it.path, h: it.h }) %>
 <% const p = it.person; %>
 <div class="page-head">
   <div>
@@ -14,7 +15,7 @@
     <% if (!it.items.length) { %><div class="empty">Aucun objet attribué.</div><% } else { %>
     <div class="table-wrap">
     <table class="table responsive clickable">
-      <thead><tr><th>Nom</th><th>Marque / modèle</th><th>Depuis</th><th>Statut</th></tr></thead>
+      <thead><tr><th>Nom</th><th>Marque / modèle</th><th>Depuis</th><th>Statut</th><th></th></tr></thead>
       <tbody>
       <% for (const i of it.items) { %>
         <tr data-href="/objets/<%= i.id %>">
@@ -22,6 +23,7 @@
           <td data-label="Marque / modèle"><%= [i.brand, i.model].filter(Boolean).join(' ') %></td>
           <td data-label="Depuis" class="nowrap small"><%= i.assigned_at ? it.h.day(i.assigned_at) : '' %></td>
           <td data-label="Statut"><%~ include('/_status', { name: i.status_name, color: i.status_color }) %></td>
+          <td class="nowrap"><form method="post" action="/personnes/<%= p.id %>/retirer/<%= i.id %>" class="inline"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm" type="submit">Retirer</button></form></td>
         </tr>
       <% } %>
       </tbody>
@@ -31,6 +33,24 @@
   </section>
   <% if (it.canEdit) { %>
   <div class="stack">
+    <section class="card" id="attribuer">
+      <div class="card-head"><h2>Attribuer un objet</h2></div>
+      <div class="card-body">
+        <form method="post" action="/personnes/<%= p.id %>/attribuer" class="stack">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+          <div class="field">
+            <label for="as-item">Objet</label>
+            <input id="as-item" name="item" type="text" list="as-items" placeholder="Tapez pour chercher…" required autocomplete="off">
+            <datalist id="as-items">
+              <% for (const o of it.allItems) { %><option value="#<%= o.id %> <%= o.name %><%= o.brand || o.model ? ' (' + [o.brand, o.model].filter(Boolean).join(' ') + ')' : '' %>"></option><% } %>
+            </datalist>
+            <span class="hint">Un objet déjà attribué à quelqu’un d’autre lui est retiré.</span>
+          </div>
+          <div class="field"><label for="as-date">Depuis le</label><input id="as-date" name="date" type="date" value="<%= it.today %>"></div>
+          <div><button class="btn btn-primary" type="submit">Attribuer</button></div>
+        </form>
+      </div>
+    </section>
     <section class="card">
       <div class="card-head"><h2>Modifier</h2></div>
       <div class="card-body">

@@ -94,7 +94,7 @@ export function render(req: FastifyRequest, reply: FastifyReply, template: strin
     csrf: req.session?.csrf ?? req.anonCsrf ?? '',
     theme,
     path: req.url.split('?')[0],
-    flash: readFlash(req, reply),
+    flash: (data.flash as { type: string; msg: string } | undefined) ?? readFlash(req, reply),
     oidc: { enabled: config.oidc.enabled, label: config.oidc.label },
     h: helpers,
   });

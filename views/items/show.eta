@@ -10,7 +10,7 @@
       <div class="row">
         <%~ include('/_status', { name: i.status_name, color: i.status_color }) %>
         <% if (i.quantity > 1) { %><span class="badge badge-outline">Lot × <%= it.h.num(i.quantity) %></span><% } %>
-        <% if (it.assigned) { %><a class="badge badge-violet" href="/personnes/<%= it.assigned.id %>">Attribué à <%= it.assigned.name %></a><% } %>
+        <% if (it.assigned) { %><a class="badge badge-violet" href="<%= it.canEdit ? '/personnes/' + it.assigned.id : '/objets?personne=' + it.assigned.id %>">Attribué à <%= it.assigned.name %></a><% } %>
         <span class="muted small mono">#<%= i.id %></span>
         <span class="muted small"><%= i.label_printed_at ? 'Étiquette imprimée le ' + it.h.dateTime(i.label_printed_at) : 'Étiquette jamais imprimée' %></span>
       </div>
@@ -42,8 +42,8 @@
           <div class="k">Modèle</div><div class="v"><%= i.model || '' %></div>
           <div class="k">N° de série</div><div class="v mono"><%= i.serial || '' %></div>
           <div class="k">Quantité</div><div class="v"><%= it.h.num(i.quantity) %></div>
-          <div class="k">Catégorie</div><div class="v"><% if (it.categoryLineage.length) { %><% it.categoryLineage.forEach((c, n) => { %><%= n ? ' › ' : '' %><a href="/categories/<%= c.id %>"><%= c.name %></a><% }) %><% } else { %><span class="muted">Aucune</span><% } %></div>
-          <div class="k">Emplacement</div><div class="v"><% if (it.locationLineage.length) { %><% it.locationLineage.forEach((l, n) => { %><%= n ? ' › ' : '' %><a href="/emplacements/<%= l.id %>"><%= l.name %></a><% }) %><% } else { %><span class="muted">Aucun</span><% } %></div>
+          <div class="k">Catégorie</div><div class="v"><% if (it.categoryLineage.length) { %><% it.categoryLineage.forEach((c, n) => { %><%= n ? ' › ' : '' %><a href="<%= it.canEdit ? '/categories/' + c.id : '/objets?cat=' + c.id %>"><%= c.name %></a><% }) %><% } else { %><span class="muted">Aucune</span><% } %></div>
+          <div class="k">Emplacement</div><div class="v"><% if (it.locationLineage.length) { %><% it.locationLineage.forEach((l, n) => { %><%= n ? ' › ' : '' %><a href="<%= it.canEdit ? '/emplacements/' + l.id : '/objets?loc=' + l.id %>"><%= l.name %></a><% }) %><% } else { %><span class="muted">Aucun</span><% } %></div>
         </div>
       </div>
     </section>
@@ -180,21 +180,21 @@
       <div class="card-body stack">
         <% if (it.assigned) { %>
           <div class="row-between">
-            <div>Attribué à <a href="/personnes/<%= it.assigned.id %>"><strong><%= it.assigned.name %></strong></a><% if (i.assigned_at) { %> <span class="muted small">depuis le <%= it.h.day(i.assigned_at) %></span><% } %></div>
+            <div>Attribué à <a href="<%= it.canEdit ? '/personnes/' + it.assigned.id : '/objets?personne=' + it.assigned.id %>"><strong><%= it.assigned.name %></strong></a><% if (i.assigned_at) { %> <span class="muted small">depuis le <%= it.h.day(i.assigned_at) %></span><% } %></div>
             <% if (edit) { %><form method="post" action="/objets/<%= i.id %>/attribution" class="inline"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="retirer"><button class="btn btn-sm" type="submit">Retirer</button></form><% } %>
           </div>
         <% } else { %><p class="muted">Attribué à personne.</p><% } %>
-        <% if (edit) { %>
+        <% if (edit && !it.people.length) { %><p class="small muted">Aucune personne enregistrée : ajoutez-en dans <a href="/personnes">Administration › Personnes</a>.</p><% } %>
+        <% if (edit && it.people.length) { %>
         <form method="post" action="/objets/<%= i.id %>/attribution" class="stack">
           <input type="hidden" name="_csrf" value="<%= it.csrf %>">
           <div class="field">
             <label for="as-person"><%= it.assigned ? 'Attribuer à quelqu’un d’autre' : 'Attribuer à' %></label>
-            <select id="as-person" name="person_id">
+            <select id="as-person" name="person_id" required>
               <option value="">Choisir une personne…</option>
               <% for (const p of it.people) { %><option value="<%= p.id %>"><%= p.name %></option><% } %>
             </select>
           </div>
-          <div class="field"><label for="as-new">ou nouvelle personne</label><input id="as-new" name="new_person" type="text" maxlength="120" placeholder="Nom"></div>
           <div class="field"><label for="as-date">Depuis le</label><input id="as-date" name="date" type="date" value="<%= it.today %>"></div>
           <div><button class="btn btn-sm" type="submit">Attribuer</button></div>
         </form>

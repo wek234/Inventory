@@ -1,9 +1,7 @@
 <% layout('/layout') %>
+<%~ include('/_subnav', { space: 'administration', path: it.path, h: it.h }) %>
 <div class="page-head">
-  <div>
-    <a class="btn btn-back" href="/administration">Retour à l’administration</a>
-    <h1>Comptes</h1>
-  </div>
+  <h1>Comptes</h1>
 </div>
 <div class="cols">
   <section class="card">

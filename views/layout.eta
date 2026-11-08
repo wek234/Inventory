@@ -20,13 +20,22 @@
 <% } %></head>
 <body data-app>
 <%
+  const under = (href) => it.path === href || it.path.startsWith(href + '/');
   const nav = [
-    ['/', 'Tableau de bord', 'dashboard'], ['/objets', 'Objets', 'items'], ['/emplacements', 'Emplacements', 'locations'], ['/categories', 'Catégories', 'categories'], ['/statuts', 'Statuts', 'statuses'],
-    ['/personnes', 'Personnes', 'people'],
-    null, ...(it.canEdit ? [['/rangement', 'Rangement', 'scan'], ['/import', 'Import', 'import'], ['/export', 'Export', 'export']] : []), ['/historique', 'Historique', 'history'],
-    ...(it.canEdit ? [['/corbeille', 'Corbeille', 'trash'], ['/administration', 'Administration', 'admin']] : [])
+    ['/', 'Tableau de bord', 'dashboard', it.path === '/'],
+    ['/objets', 'Objets', 'items', under('/objets')],
+    ...(it.canEdit ? [
+      null,
+      ['/corbeille', 'Corbeille', 'trash', under('/corbeille')],
+      ['/parametres', 'Paramètres', 'settings', ['/parametres', '/categories', '/emplacements', '/statuts'].some(under)],
+      ['/administration', 'Administration', 'shield', ['/administration', '/personnes'].some(under)],
+    ] : []),
   ];
-  const active = (href) => href === '/' ? it.path === '/' : (it.path === href || it.path.startsWith(href + '/'));
+  const tools = it.canEdit ? [
+    ['/rangement', 'Rangement', 'scan'], ['/historique', 'Historique', 'history'], ['/import', 'Import', 'import'], ['/export', 'Export', 'export'],
+  ] : [];
+  const toolsOpen = tools.some((t) => under(t[0]));
+  const active = under;
   const themeLabel = { auto: 'Thème : automatique', light: 'Thème : clair', dark: 'Thème : sombre' }[it.theme];
 %>
 <header class="topbar">
@@ -39,8 +48,16 @@
     <div class="nav">
     <% for (const n of nav) { %>
       <% if (!n) { %><div class="nav-sep"></div><% } else { %>
-      <a href="<%= n[0] %>" class="<%= active(n[0]) ? 'active' : '' %>"<%~ active(n[0]) ? ' aria-current="page"' : '' %>><%~ it.h.icon(n[2]) %><span><%= n[1] %></span></a>
+      <a href="<%= n[0] %>" class="<%= n[3] ? 'active' : '' %>"<%~ n[3] ? ' aria-current="page"' : '' %>><%~ it.h.icon(n[2]) %><span><%= n[1] %></span></a>
       <% } %>
+    <% } %>
+    <% if (tools.length) { %>
+      <details class="nav-group" data-nav-group="outils"<%~ toolsOpen ? ' open data-forced' : '' %>>
+        <summary><%~ it.h.icon('tools') %><span>Outils</span><span class="nav-caret" aria-hidden="true"></span></summary>
+        <% for (const t of tools) { %>
+        <a href="<%= t[0] %>" class="<%= under(t[0]) ? 'active' : '' %>"<%~ under(t[0]) ? ' aria-current="page"' : '' %>><%~ it.h.icon(t[2]) %><span><%= t[1] %></span></a>
+        <% } %>
+      </details>
     <% } %>
     </div>
     <div class="sidebar-foot">

@@ -45,7 +45,7 @@ export function checkMultipartCsrf(req: FastifyRequest, value: unknown): boolean
 }
 
 // Ce qu'un compte en lecture seule peut faire.
-const READ_ONLY_DENY_GET = [/^\/import/, /^\/export/, /^\/etiquettes/, /\/etiquette$/, /^\/administration/, /^\/corbeille/, /^\/rangement/, /^\/objets\/nouveau/, /^\/objets\/masse/, /^\/objets\/formulaire/, /\/modifier$/];
+const READ_ONLY_DENY_GET = [/^\/parametres/, /^\/emplacements/, /^\/categories/, /^\/statuts/, /^\/personnes/, /^\/historique/, /^\/import/, /^\/export/, /^\/etiquettes/, /\/etiquette$/, /^\/administration/, /^\/corbeille/, /^\/rangement/, /^\/objets\/nouveau/, /^\/objets\/masse/, /^\/objets\/formulaire/, /\/modifier$/];
 const READ_ONLY_ALLOW_POST = [/^\/logout$/, /^\/compte\//, /^\/login\//, /^\/auth\//];
 function readOnlyAllowed(method: string, path: string) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return !READ_ONLY_DENY_GET.some((re) => re.test(path));

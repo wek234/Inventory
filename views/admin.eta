@@ -1,6 +1,7 @@
 <% layout('/layout') %>
+<%~ include('/_subnav', { space: 'administration', path: it.path, h: it.h }) %>
 <% const a = it.app, s = it.system, st = it.storage, d = it.database, r = it.release; %>
-<div class="page-head"><h1>Administration</h1><div class="actions"><a class="btn" href="/administration/comptes"><%~ it.h.icon('people') %>Gérer les comptes</a></div></div>
+<div class="page-head"><h1>Système</h1></div>
 <div class="stack">
   <section class="card" id="version">
     <div class="card-head">

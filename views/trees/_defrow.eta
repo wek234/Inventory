@@ -1,0 +1,25 @@
+<%
+  const d = it.d; const k = it.key; const locked = it.used > 0;
+  const opts = (d.optionList || []).join('\n');
+%>
+<div class="def-row<%= it.error ? ' has-error' : '' %>" data-def-row data-type="<%= d.type %>">
+  <div class="field"><label for="<%= k %>_name"<%~ it.first ? '' : ' class="sr-only"' %>>Nom</label><input id="<%= k %>_name" type="text" name="<%= k %>_name" value="<%= d.name %>" maxlength="120" placeholder="ex. Puissance"<%~ it.isNew ? '' : ' required' %>></div>
+  <div class="field"><label for="<%= k %>_type"<%~ it.first ? '' : ' class="sr-only"' %>>Type</label>
+    <select id="<%= k %>_type" name="<%= k %>_type" data-def-type<%~ locked ? ' title="Type verrouillé : des valeurs existent"' : '' %>>
+      <% for (const t of it.h.attrTypes) { if (locked && t.value !== d.type) continue; %><option value="<%= t.value %>" <%= d.type === t.value ? 'selected' : '' %>><%= t.label %></option><% } %>
+    </select>
+  </div>
+  <div class="field"><label for="<%= k %>_sort"<%~ it.first ? '' : ' class="sr-only"' %>>Ordre</label><input id="<%= k %>_sort" type="number" name="<%= k %>_sort" value="<%= d.sort_order %>" step="1"></div>
+  <div class="field">
+    <label<%~ it.first ? '' : ' class="sr-only"' %>>Détails</label>
+    <input class="def-unit" type="text" name="<%= k %>_unit" value="<%= d.unit || '' %>" maxlength="32" placeholder="Unité (ex. W, Go, kg)" aria-label="Unité">
+    <textarea class="def-options" name="<%= k %>_options" rows="3" placeholder="Options, une par ligne" aria-label="Options"><%= opts %></textarea>
+    <label class="check small"><input type="checkbox" name="<%= k %>_optional" value="1" <%= d.optional ? 'checked' : '' %>> Facultative</label>
+    <% if (!it.isNew) { %><span class="hint"><%= it.used ? it.h.plural(it.used, 'valeur saisie', 'valeurs saisies') : 'Aucune valeur saisie' %></span><% } %>
+    <% if (it.error) { %><span class="err"><%= it.error %></span><% } %>
+  </div>
+  <div class="def-actions">
+    <% if (it.isNew) { %><button class="btn btn-sm btn-ghost" type="button" data-action="remove-new-def" title="Retirer cette ligne">Retirer</button>
+    <% } else { %><button class="btn btn-sm btn-danger" type="submit" form="del-<%= d.id %>">Supprimer</button><% } %>
+  </div>
+</div>
