@@ -12,7 +12,7 @@ import { parseFilters, buildItemQuery, orderItems } from '../services/items.js';
 import { STATUS_COLORS } from '../seed.js';
 import { verifyPassword, hashPassword, passwordProblems, decrypt } from '../security.js';
 import { checkTotp, createSession } from '../auth.js';
-import otplib from 'otplib';
+import { newTotpSecret } from '../totp.js';
 
 const ENTITY_LABELS: Record<string, string> = {
   objet: 'Objets',
@@ -214,7 +214,7 @@ export async function miscRoutes(app: FastifyInstance) {
     await db.deleteFrom('sessions').where('user_id', '=', user.id).where('id', '!=', req.session!.id).execute();
     await audit(req, 'compte', user.id, 'totp', 'Réinitialisation du TOTP demandée');
     // Nouvelle session limitée à l'enrôlement : l'ancien secret reste valable tant que le nouveau n'est pas confirmé.
-    await createSession(req, reply, user.id, 'pending_enroll', otplib.authenticator.generateSecret(20));
+    await createSession(req, reply, user.id, 'pending_enroll', newTotpSecret());
     return redirect(req, reply, '/login/enroll');
   });
 

@@ -275,7 +275,7 @@ export function buildRows(batch: Batch, ctx: BuildCtx): PreviewRow[] {
         warnings: [],
       };
       const notes: string[] = [];
-      const pending: { name: string; type: AttrType; unit: string | null; raw: string }[] = [];
+      const pending: { name: string; alt?: string; type: AttrType; unit: string | null; raw: string }[] = [];
       let hasData = false;
 
       for (const col of cfg.columns) {
@@ -352,7 +352,8 @@ export function buildRows(batch: Batch, ctx: BuildCtx): PreviewRow[] {
             break;
           }
           case 'free':
-            pending.push({ name: col.source, type: 'text', unit: null, raw: val });
+            // « RAM (Go) » (export CSV) retrouve la caractéristique « RAM » de la catégorie de la ligne.
+            pending.push({ name: col.source, alt: col.source.replace(/\s*\([^)]*\)\s*$/, ''), type: 'text', unit: null, raw: val });
             break;
           default:
             if (col.target.startsWith('attr:')) pending.push({ name: col.target.slice(5), type: 'text', unit: null, raw: val });
@@ -378,8 +379,9 @@ export function buildRows(batch: Batch, ctx: BuildCtx): PreviewRow[] {
         const key = p.name.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
-        const def = defs.find((d) => d.name.toLowerCase() === key);
-        row.values.push(def ? { name: def.name, type: def.type, unit: def.unit, raw: p.raw } : p);
+        const def = defs.find((d) => d.name.toLowerCase() === key) ?? (p.alt ? defs.find((d) => d.name.toLowerCase() === p.alt!.toLowerCase()) : undefined);
+        const raw = def?.type === 'boolean' ? ({ oui: '1', non: '0' } as Record<string, string>)[p.raw.toLowerCase()] ?? p.raw : p.raw;
+        row.values.push(def ? { name: def.name, type: def.type, unit: def.unit, raw } : { name: p.name, type: p.type, unit: p.unit, raw: p.raw });
       }
       out.push(row);
     }

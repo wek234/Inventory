@@ -2,15 +2,13 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import QRCode from 'qrcode';
 import fp from 'fastify-plugin';
-import otplib from 'otplib';
+import { checkTotp, newTotpSecret, totpUri } from './totp.js';
 import { config } from './config.js';
 import { db, User } from './db.js';
 import { randomToken, sha256, safeEqual, encrypt, decrypt, verifyPassword, dummyVerify } from './security.js';
 import { render, redirect, setFlash } from './views.js';
 import { audit } from './services/audit.js';
 
-const { authenticator } = otplib;
-authenticator.options = { window: 1, step: 30, digits: 6 };
 
 export interface SessionRow {
   id: string;
@@ -104,17 +102,6 @@ async function registerFailure(req: FastifyRequest, user: User | undefined, reas
 
 function isLocked(user: User) {
   return user.locked_until && new Date(user.locked_until).getTime() > Date.now();
-}
-
-// Vérifie un code TOTP avec protection contre le rejeu (un même pas de temps ne sert qu'une fois).
-export function checkTotp(secret: string, code: string, lastStep: number | null): number | null {
-  const clean = code.replace(/\s/g, '');
-  if (!/^\d{6}$/.test(clean)) return null;
-  const delta = authenticator.checkDelta(clean, secret);
-  if (delta === null) return null;
-  const step = Math.floor(Date.now() / 30000) + delta;
-  if (lastStep !== null && step <= lastStep) return null;
-  return step;
 }
 
 function safeNext(n: unknown): string {
@@ -240,7 +227,7 @@ async function authPluginImpl(app: FastifyInstance) {
       await createSession(req, reply, user.id, 'pending_totp');
       return reply.redirect('/login/totp', 303);
     }
-    await createSession(req, reply, user.id, 'pending_enroll', authenticator.generateSecret(20));
+    await createSession(req, reply, user.id, 'pending_enroll', newTotpSecret());
     return reply.redirect('/login/enroll', 303);
   });
 
@@ -273,7 +260,7 @@ async function authPluginImpl(app: FastifyInstance) {
     const user = await db.selectFrom('users').select(['username']).where('id', '=', req.session.user_id).executeTakeFirstOrThrow();
     const secret = decrypt(req.session.enroll_secret_enc);
     const host = new URL(config.publicUrl).host;
-    const uri = authenticator.keyuri(user.username, `Inventaire (${host})`, secret);
+    const uri = totpUri(user.username, `Inventaire (${host})`, secret);
     const qr = await QRCode.toDataURL(uri, { margin: 1, width: 220 });
     return render(req, reply, 'auth/enroll', { qr, secret: secret.replace(/(.{4})/g, '$1 ').trim(), error: null });
   });
@@ -386,4 +373,4 @@ async function registerOidc(app: FastifyInstance) {
 // fastify-plugin : les hooks s'appliquent à TOUTE l'application, pas seulement à ce plugin.
 export const authPlugin = fp(authPluginImpl, { name: 'auth' });
 
-export { createSession, SESSION_COOKIE };
+export { createSession, SESSION_COOKIE, checkTotp };

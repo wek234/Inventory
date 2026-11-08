@@ -2,7 +2,7 @@
 
 Application web auto-hébergée pour inventorier du matériel : objets ou lots, emplacements et catégories en arborescence, caractéristiques typées ajoutables à la volée, photos, factures et documents, liens entre objets, entretien et réparations, historique complet, étiquettes QR, import Excel/CSV et export.
 
-Stack : Node.js (Fastify, TypeScript), pages rendues côté serveur avec HTMX, MariaDB. Aucune ressource externe (pas de CDN). Interface en français.
+Stack : Node.js 22 (Fastify, TypeScript), pages rendues côté serveur avec HTMX, MariaDB. Aucune ressource externe (pas de CDN). Interface en français.
 
 ## 1. Préparer le conteneur LXC (Proxmox)
 
@@ -17,19 +17,19 @@ Copiez l'archive dans le conteneur, puis en root :
 ```bash
 tar xzf inventory-X.Y.Z.tar.gz
 cd inventory-X.Y.Z
-./deploy/install.sh
+bash deploy/install.sh
 ```
 
 Le script demande l'adresse publique (ex. `https://inventaire.example.com`), l'IP du serveur de sauvegarde (facultative) puis l'identifiant et le mot de passe de votre compte. Pour une installation sans questions :
 
 ```bash
 PUBLIC_URL=https://inventaire.example.com BACKUP_IP=10.0.0.50 \
-BACKUP_PUBKEY="ssh-ed25519 AAAA... backup@serveur" ADMIN_USER=admin ./deploy/install.sh
+BACKUP_PUBKEY="ssh-ed25519 AAAA... backup@serveur" ADMIN_USER=admin bash deploy/install.sh
 ```
 
 Le script :
 
-1. installe Node.js, MariaDB, rsync et nftables depuis les dépôts Debian ;
+1. installe MariaDB, rsync et nftables depuis les dépôts Debian, et **Node.js 22 LTS** depuis le dépôt officiel NodeSource (signé) : Debian 13 ne fournit que Node 20, qui n'est plus maintenu en amont ;
 2. crée l'utilisateur système `inventory`, copie l'application dans `/opt/inventory` (lecture seule pour le service) et les données dans `/var/lib/inventory` ;
 3. crée la base `inventory` et un compte applicatif (socket local uniquement) ; si une IP de sauvegarde est donnée, un compte **lecture seule** autorisé uniquement depuis cette IP ;
 4. génère les secrets dans `/etc/inventory/inventory.env` (droits 640, root:inventory) ;
@@ -52,17 +52,19 @@ Les cookies de session ne circulent qu'en HTTPS : passez toujours par l'adresse 
 
 ## 5. Mettre à jour sans perte de données
 
+L'archive « Source code (tar.gz) » d'une release GitHub convient : si le code n'est pas compilé (pas de dossier `dist/`), le script le compile lui-même. Lancez-le avec `bash` (GitHub ne conserve pas toujours le droit d'exécution).
+
 ```bash
 tar xzf inventory-X.Y.Z.tar.gz
 cd inventory-X.Y.Z
-./deploy/install.sh
+bash deploy/install.sh
 ```
 
 Le script détecte une installation existante et :
 
 1. **sauvegarde la base** (`/var/backups/inventory/base-avant-maj-DATE.sql.gz`) et l'application en place (`appli-avant-maj-DATE.tar.gz`, configuration comprise), en gardant les 5 dernières ;
 2. arrête le service, remplace le code dans `/opt/inventory`, installe les dépendances ;
-3. applique les éventuelles migrations de schéma (elles ne suppriment jamais de données) ;
+3. passe à Node.js 22 si besoin, réinstalle les dépendances, applique les éventuelles migrations de schéma (elles ne suppriment jamais de données) ;
 4. redémarre le service et vérifie qu'il répond.
 
 Ne sont jamais touchés : `/etc/inventory/inventory.env` (secrets et réglages), la base de données, les fichiers joints (`/var/lib/inventory/uploads`) et les accès de sauvegarde.

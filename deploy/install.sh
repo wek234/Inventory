@@ -21,7 +21,8 @@ ENV_FILE=$ENV_DIR/inventory.env
 CRED_FILE=/root/inventory-identifiants.txt
 BACKUP_DIR=/var/backups/inventory
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION=$(node -p "require('$SRC_DIR/package.json').version" 2>/dev/null || grep -o '"version": *"[^"]*"' "$SRC_DIR/package.json" | cut -d'"' -f4)
+APP_VERSION=$(grep -o '"version": *"[^"]*"' "$SRC_DIR/package.json" | head -1 | cut -d'"' -f4)
+NODE_WANTED=22
 
 say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 die() { printf '\033[31mErreur : %s\033[0m\n' "$*" >&2; exit 1; }
@@ -30,28 +31,20 @@ ask() { local var=$1 prompt=$2 def=${3:-}; local ans; read -rp "$prompt${def:+ [
 [[ $EUID -eq 0 ]] || die "lancez ce script en root."
 . /etc/os-release
 [[ "${ID:-}" == "debian" && "${VERSION_ID:-}" == "13" ]] || echo "Attention : prévu pour Debian 13, système détecté : ${PRETTY_NAME:-inconnu}."
-[[ -f "$SRC_DIR/dist/server.js" ]] || die "dossier de l'application introuvable ($SRC_DIR/dist/server.js)."
+[[ -f "$SRC_DIR/package.json" && -d "$SRC_DIR/views" ]] || die "dossier de l'application introuvable ($SRC_DIR)."
 
 UPDATE=0
 [[ -f "$ENV_FILE" ]] && UPDATE=1
 
 if [[ $UPDATE -eq 0 ]]; then
-  say "Première installation (version $VERSION)"
+  say "Première installation (version $APP_VERSION)"
   [[ -n "${PUBLIC_URL:-}" ]] || ask PUBLIC_URL "Adresse publique de l'application (https://…)"
   [[ "$PUBLIC_URL" =~ ^https?://[^/]+$ ]] || die "adresse invalide : « $PUBLIC_URL » (attendu : https://nom.domaine, sans / final)."
   if [[ -z "${BACKUP_IP+x}" ]]; then ask BACKUP_IP "IP du serveur de sauvegarde (laisser vide pour aucun accès distant)"; fi
   [[ -z "$BACKUP_IP" || "$BACKUP_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || die "IP de sauvegarde invalide : « $BACKUP_IP »."
 else
-  say "Mise à jour vers la version $VERSION"
+  say "Mise à jour vers la version $APP_VERSION"
 fi
-
-say "Paquets système"
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y -qq nodejs npm mariadb-server rsync openssl ca-certificates nftables openssh-server build-essential python3 curl >/dev/null
-NODE_MAJOR=$(node -p 'process.versions.node.split(".")[0]')
-(( NODE_MAJOR >= 20 )) || die "Node.js 20 ou plus requis (trouvé : $(node -v))."
-echo "Node.js $(node -v), $(mariadb --version | head -1)"
 
 if [[ $UPDATE -eq 1 ]]; then
   say "Sauvegarde avant mise à jour"
@@ -66,6 +59,47 @@ if [[ $UPDATE -eq 1 ]]; then
   systemctl stop inventory 2>/dev/null || true
 fi
 
+say "Paquets système"
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq mariadb-server rsync openssl ca-certificates gnupg nftables openssh-server build-essential python3 curl >/dev/null
+
+# Node.js ${NODE_WANTED} LTS depuis le dépôt officiel NodeSource (Debian 13 ne fournit que Node 20, qui n'est plus maintenu en amont).
+CURRENT_NODE=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+if (( CURRENT_NODE < NODE_WANTED )); then
+  say "Installation de Node.js ${NODE_WANTED} (dépôt NodeSource)"
+  install -d -m 0755 /etc/apt/keyrings
+  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg
+  chmod 0644 /etc/apt/keyrings/nodesource.gpg
+  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_WANTED}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
+  # Le paquet nodejs vient toujours de NodeSource, jamais de Debian.
+  cat > /etc/apt/preferences.d/nodesource <<PIN
+Package: nodejs
+Pin: origin deb.nodesource.com
+Pin-Priority: 600
+PIN
+  # Les paquets Debian npm / nodejs entrent en conflit avec celui de NodeSource (qui inclut npm).
+  apt-get remove -y -qq npm nodejs >/dev/null 2>&1 || true
+  apt-get autoremove -y -qq >/dev/null 2>&1 || true
+  apt-get update -qq
+fi
+apt-get install -y -qq nodejs >/dev/null
+hash -r
+NODE_MAJOR=$(node -p 'process.versions.node.split(".")[0]')
+(( NODE_MAJOR >= NODE_WANTED )) || die "Node.js ${NODE_WANTED} ou plus requis (trouvé : $(node -v))."
+echo "Node.js $(node -v), $(mariadb --version | head -1)"
+
+# Archive « Source code » de GitHub : pas de dossier dist/ (code non compilé). On compile dans un dossier temporaire.
+if [[ ! -f "$SRC_DIR/dist/server.js" || ! -f "$SRC_DIR/public/vendor/htmx.min.js" ]]; then
+  say "Compilation (archive source)"
+  BUILD_DIR=$(mktemp -d /tmp/inventory-build.XXXXXX)
+  trap 'rm -rf "$BUILD_DIR"' EXIT
+  rsync -a --exclude node_modules --exclude dist "$SRC_DIR/" "$BUILD_DIR/"
+  (cd "$BUILD_DIR" && npm ci --no-audit --no-fund --loglevel=error && npm run build --silent)
+  [[ -f "$BUILD_DIR/dist/server.js" ]] || die "la compilation a échoué."
+  SRC_DIR="$BUILD_DIR"
+fi
+
 say "Utilisateur système et dossiers"
 id inventory &>/dev/null || useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin inventory
 install -d -o inventory -g inventory -m 0750 "$DATA_DIR" "$DATA_DIR/uploads"
@@ -76,6 +110,7 @@ install -d -o root -g root -m 0755 "$APP_DIR"
 rsync -a --delete --exclude node_modules \
   "$SRC_DIR/dist" "$SRC_DIR/views" "$SRC_DIR/public" "$SRC_DIR/package.json" "$SRC_DIR/package-lock.json" "$APP_DIR/"
 cd "$APP_DIR"
+rm -rf "$APP_DIR/node_modules"
 npm ci --omit=dev --no-audit --no-fund --loglevel=error
 chown -R root:root "$APP_DIR"
 chmod -R u=rwX,go=rX "$APP_DIR"
@@ -245,7 +280,7 @@ if [[ "$(mariadb -N inventory -e 'SELECT COUNT(*) FROM users')" == "0" ]]; then
   cli create-user "$USERNAME"
 fi
 
-say "Terminé (version $VERSION)"
+say "Terminé (version $APP_VERSION)"
 if [[ $UPDATE -eq 1 ]]; then
   echo "Mise à jour appliquée : configuration, base et fichiers conservés."
 else

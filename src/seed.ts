@@ -72,11 +72,11 @@ async function isEmpty(table: 'statuses' | 'locations' | 'categories') {
 export async function seed() {
   if (await isEmpty('statuses')) {
     await db.insertInto('statuses').values(STATUSES.map(([name, color], i) => ({ name, color, sort_order: i }))).execute();
-    console.log(`${STATUSES.length} statuts créés`);
+    console.log(`${STATUSES.length} statut(s) créé(s)`);
   }
   if (await isEmpty('locations')) {
     for (const name of LOCATIONS) await db.insertInto('locations').values({ name, parent_id: null }).execute();
-    console.log(`${LOCATIONS.length} emplacements créés`);
+    console.log(`${LOCATIONS.length} emplacement(s) créé(s)`);
   }
   if (await isEmpty('categories')) {
     const insert = async (c: CatSeed, parent: number | null) => {

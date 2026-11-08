@@ -1,5 +1,5 @@
 // Lecture d'un classeur Excel (.xlsx) ou d'un CSV en grilles de chaînes, puis extraction d'enregistrements.
-import ExcelJS from 'exceljs';
+import readXlsxFile from 'read-excel-file/node';
 import { parse as parseCsv } from 'csv-parse/sync';
 
 export type Grid = (string | null)[][];
@@ -43,23 +43,11 @@ export async function readWorkbook(buf: Buffer, filename: string): Promise<RawSh
     if (rows.length > 20000) throw new Error('Fichier trop long (20 000 lignes maximum).');
     return [{ name: filename.replace(/\.[^.]+$/, '').slice(0, 60) || 'CSV', grid: rows.map((r) => r.map(cellToString)) }];
   }
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buf as any);
-  const sheets: RawSheet[] = [];
-  wb.eachSheet((ws) => {
-    if (ws.state && ws.state !== 'visible') return;
-    const grid: Grid = [];
-    const maxRow = Math.min(ws.rowCount, 20000);
-    const maxCol = Math.min(ws.columnCount, 200);
-    for (let r = 1; r <= maxRow; r++) {
-      const row = ws.getRow(r);
-      const line: (string | null)[] = [];
-      for (let c = 1; c <= maxCol; c++) line.push(cellToString(row.getCell(c).value));
-      grid.push(line);
-    }
-    sheets.push({ name: ws.name.slice(0, 60), grid });
-  });
-  return sheets;
+  const book = await readXlsxFile(buf);
+  return book.map((ws) => ({
+    name: String(ws.sheet).slice(0, 60),
+    grid: ws.data.slice(0, 20000).map((row) => row.slice(0, 200).map(cellToString)),
+  }));
 }
 
 const AUTO_HEADER = /^(colonne|column)\s*\d+$/i;
