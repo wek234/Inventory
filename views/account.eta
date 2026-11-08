@@ -17,9 +17,10 @@
     </div>
   </section>
   <div class="stack">
-    <section class="card">
-      <div class="card-head"><h2>Double authentification</h2></div>
+    <section class="card" id="securite">
+      <div class="card-head"><h2>Double authentification et clés d’accès</h2></div>
       <div class="card-body">
+        <div class="label">Application TOTP</div>
         <p class="small muted">Pour changer de téléphone ou d’application : confirmez avec votre mot de passe et un code actuel, puis scannez le nouveau QR code.</p>
         <form method="post" action="/compte/totp" class="stack">
           <input type="hidden" name="_csrf" value="<%= it.csrf %>">
@@ -29,6 +30,26 @@
           </div>
           <div><button class="btn" type="submit">Reconfigurer le TOTP</button></div>
         </form>
+      </div>
+      <div id="passkeys" class="section-split">
+      <div class="card-body pb-0"><div class="label">Clés d’accès (passkeys)</div></div>
+    <% if (it.passkeys.length) { %>
+      <ul class="list">
+        <% for (const k of it.passkeys) { %>
+        <li><div><strong><%= k.name %></strong><div class="meta">Ajoutée le <%= it.h.dateTime(k.created_at) %><%= k.last_used_at ? ' · dernière utilisation ' + it.h.dateTime(k.last_used_at) : '' %></div></div>
+          <form method="post" action="/compte/passkeys/<%= k.id %>/supprimer" class="inline" data-confirm="Supprimer la clé « <%= k.name %> » ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm btn-danger" type="submit">Supprimer</button></form></li>
+        <% } %>
+      </ul>
+      <% } %>
+    <div class="card-body stack">
+        <p class="small muted">Connexion sans mot de passe ni code, avec l’empreinte, le visage ou le code PIN de votre appareil (téléphone, ordinateur, clé de sécurité). Plus sûre que le mot de passe : elle ne peut pas être hameçonnée.</p>
+        <div class="row">
+          <label class="sr-only" for="pk-name">Nom de la clé</label>
+          <input id="pk-name" type="text" maxlength="100" placeholder="Nom (ex. Téléphone, PC bureau)" data-passkey-name>
+          <button class="btn btn-primary" type="button" data-action="passkey-register"><%~ it.h.icon('key') %>Ajouter une clé d’accès</button>
+        </div>
+        <p class="err" data-passkey-error hidden></p>
+      </div>
       </div>
     </section>
     <% if (it.oidc.enabled) { %>
@@ -48,28 +69,7 @@
   </div>
 </div>
 
-<div class="grid-2 mt">
-  <section class="card" id="passkeys">
-    <div class="card-head"><h2>Clés d’accès (passkeys)</h2></div>
-    <% if (it.passkeys.length) { %>
-    <ul class="list">
-      <% for (const k of it.passkeys) { %>
-      <li><div><strong><%= k.name %></strong><div class="meta">Ajoutée le <%= it.h.dateTime(k.created_at) %><%= k.last_used_at ? ' · dernière utilisation ' + it.h.dateTime(k.last_used_at) : '' %></div></div>
-        <form method="post" action="/compte/passkeys/<%= k.id %>/supprimer" class="inline" data-confirm="Supprimer la clé « <%= k.name %> » ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm btn-danger" type="submit">Supprimer</button></form></li>
-      <% } %>
-    </ul>
-    <% } %>
-    <div class="card-body stack">
-      <p class="small muted">Connexion sans mot de passe ni code, avec l’empreinte, le visage ou le code PIN de votre appareil (téléphone, ordinateur, clé de sécurité). Plus sûre que le mot de passe : elle ne peut pas être hameçonnée.</p>
-      <div class="row">
-        <label class="sr-only" for="pk-name">Nom de la clé</label>
-        <input id="pk-name" type="text" maxlength="100" placeholder="Nom (ex. Téléphone, PC bureau)" data-passkey-name>
-        <button class="btn btn-primary" type="button" data-action="passkey-register"><%~ it.h.icon('key') %>Ajouter une clé d’accès</button>
-      </div>
-      <p class="err" data-passkey-error hidden></p>
-    </div>
-  </section>
-
+<div class="mt">
   <section class="card" id="jetons">
     <div class="card-head"><h2>Jetons d’API</h2><a class="small" href="/api/v1" title="Documentation de l’API">Documentation</a></div>
     <% if (it.tokens.length) { %>

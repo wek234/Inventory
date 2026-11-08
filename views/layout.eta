@@ -24,16 +24,13 @@
   const nav = [
     ['/', 'Tableau de bord', 'dashboard', it.path === '/'],
     ['/objets', 'Objets', 'items', under('/objets')],
-    ...(it.canEdit ? [
-      null,
-      ['/corbeille', 'Corbeille', 'trash', under('/corbeille')],
-      ['/parametres', 'Paramètres', 'settings', ['/parametres', '/categories', '/emplacements', '/statuts'].some(under)],
-      ['/administration', 'Administration', 'shield', ['/administration', '/personnes'].some(under)],
-    ] : []),
   ];
   const tools = it.canEdit ? [
-    ['/rangement', 'Rangement', 'scan'], ['/historique', 'Historique', 'history'], ['/import', 'Import', 'import'], ['/export', 'Export', 'export'],
+    ['/corbeille', 'Corbeille', 'trash'], ['/rangement', 'Rangement', 'scan'], ['/historique', 'Historique', 'history'], ['/import', 'Import', 'import'], ['/export', 'Export', 'export'],
   ] : [];
+  const settingsActive = ['/parametres', '/categories', '/emplacements', '/statuts'].some(under);
+  const adminActive = ['/administration', '/personnes'].some(under);
+  const uname = it.user ? it.user.username : '';
   const toolsOpen = tools.some((t) => under(t[0]));
   const active = under;
   const themeLabel = { auto: 'Thème : automatique', light: 'Thème : clair', dark: 'Thème : sombre' }[it.theme];
@@ -59,15 +56,28 @@
         <% } %>
       </details>
     <% } %>
+    <% if (it.canEdit) { %>
+      <a href="/parametres" class="<%= settingsActive ? 'active' : '' %>"<%~ settingsActive ? ' aria-current="page"' : '' %>><%~ it.h.icon('settings') %><span>Paramètres</span></a>
+    <% } %>
     </div>
     <div class="sidebar-foot">
       <button class="nav-btn" type="button" data-action="quick-search" title="Recherche rapide (Ctrl+K)"><%~ it.h.icon('search') %><span>Rechercher <kbd>Ctrl K</kbd></span></button>
-      <div class="nav"><a href="/compte" class="<%= active('/compte') ? 'active' : '' %>"><%~ it.h.icon('account') %><span>Mon compte <span class="muted small">(<%= it.user ? it.user.username : '' %><%= it.user && it.user.role === 'lecture' ? ', lecture seule' : '' %>)</span></span></a></div>
-      <button class="nav-btn" type="button" data-action="theme"><%~ it.h.icon('theme') %><span data-theme-label><%= themeLabel %></span></button>
-      <form method="post" action="/logout" class="inline">
-        <input type="hidden" name="_csrf" value="<%= it.csrf %>">
-        <button class="nav-btn" type="submit"><%~ it.h.icon('logout') %><span>Se déconnecter</span></button>
-      </form>
+      <details class="user-menu" data-user-menu>
+        <summary class="user-btn<%= active('/compte') || adminActive ? ' active' : '' %>">
+          <span class="avatar" aria-hidden="true"><%= uname.slice(0, 1).toUpperCase() %></span>
+          <span class="user-name"><%= uname %><% if (it.user && it.user.role === 'lecture') { %><span class="muted small">lecture seule</span><% } %></span>
+          <span class="nav-caret" aria-hidden="true"></span>
+        </summary>
+        <div class="user-pop" role="menu">
+          <a href="/compte" role="menuitem" class="<%= active('/compte') ? 'active' : '' %>"><%~ it.h.icon('account') %><span>Mon compte</span></a>
+          <% if (it.canEdit) { %><a href="/administration" role="menuitem" class="<%= adminActive ? 'active' : '' %>"><%~ it.h.icon('shield') %><span>Administration</span></a><% } %>
+          <button type="button" role="menuitem" data-action="theme"><%~ it.h.icon('theme') %><span data-theme-label><%= themeLabel %></span></button>
+          <form method="post" action="/logout" class="inline">
+            <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+            <button type="submit" role="menuitem"><%~ it.h.icon('logout') %><span>Se déconnecter</span></button>
+          </form>
+        </div>
+      </details>
     </div>
   </nav>
   <main class="main" id="main">

@@ -380,6 +380,13 @@
     });
   }
 
+  // ---------- Menu du compte : se ferme au clic ailleurs ou avec Échap ----------
+  var userMenu = document.querySelector('[data-user-menu]');
+  if (userMenu) {
+    document.addEventListener('click', function (e) { if (userMenu.open && !userMenu.contains(e.target)) userMenu.open = false; });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && userMenu.open) { userMenu.open = false; userMenu.querySelector('summary').focus(); } });
+  }
+
   // ---------- Groupe « Outils » du menu : ouvert ou replié, retenu dans ce navigateur ----------
   document.querySelectorAll('details[data-nav-group]').forEach(function (d) {
     var key = 'inv_nav_' + d.dataset.navGroup;

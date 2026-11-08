@@ -61,7 +61,6 @@
         <div class="field"><label for="e-desc">Description</label><textarea id="e-desc" name="description" rows="3"><%= n.description || '' %></textarea></div>
       </div>
     </section>
-    <div class="save-bar"><button class="btn btn-primary" type="submit">Enregistrer la catégorie</button><span class="hint">nom, emplacement dans l’arborescence, description et caractéristiques</span></div>
   </div>
 </form>
 <% for (const d of it.ownDefs) { %>

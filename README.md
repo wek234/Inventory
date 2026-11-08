@@ -59,11 +59,12 @@ Les cookies de session ne circulent qu'en HTTPS : passez toujours par l'adresse 
 
 **Organisation du menu** :
 
-- **Tableau de bord**, **Objets** : l'usage quotidien ;
-- **Corbeille** ;
+- **Tableau de bord**, **Objets** ;
+- **Outils** (groupe repliable, retenu ouvert ou fermé) : corbeille, rangement, historique, import, export ;
 - **Paramètres** : catégories (et leurs caractéristiques), emplacements, statuts ;
-- **Administration** : système (versions, mises à jour, alertes), comptes, personnes ;
-- **Outils** (groupe repliable, retenu ouvert ou fermé) : rangement, historique, import, export.
+- en bas, **Rechercher** (`Ctrl+K`) et le bouton du compte (initiale et identifiant) : il ouvre **Mon compte**, **Administration** (système, comptes, personnes ; administrateurs uniquement), le choix du **thème** et **Se déconnecter**.
+
+Dans **Mon compte**, le TOTP et les clés d'accès sont regroupés dans la même carte.
 
 Chaque compte configure son TOTP à sa première connexion. L'application garde toujours au moins un administrateur.
 
