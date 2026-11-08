@@ -467,3 +467,18 @@ form.cols + form.hidden, form.cols ~ .cols { margin-top: 16px; }
 .user-pop form { margin: 0; }
 .section-split { border-top: 1px solid var(--border); }
 .pb-0 { padding-bottom: 0; }
+
+/* Comptes */
+.account-id { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.avatar-sm { width: 24px; height: 24px; font-size: 12px; }
+.avatar-lg { width: 44px; height: 44px; font-size: 20px; }
+.account-title { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+.account-title h1 { margin: 0 0 4px; }
+.choice-list { display: flex; flex-direction: column; gap: 8px; }
+.choice { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+.choice:hover { background: var(--surface-2); }
+.choice input { margin-top: 3px; accent-color: var(--accent); }
+.choice > span { display: flex; flex-direction: column; gap: 2px; }
+.choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.danger-zone { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.mt-xs { margin: 6px 0 0; }

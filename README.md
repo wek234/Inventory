@@ -64,7 +64,7 @@ Les cookies de session ne circulent qu'en HTTPS : passez toujours par l'adresse 
 - **Paramètres** : catégories (et leurs caractéristiques), emplacements, statuts ;
 - en bas, **Rechercher** (`Ctrl+K`) et le bouton du compte (initiale et identifiant) : il ouvre **Mon compte**, **Administration** (système, comptes, personnes ; administrateurs uniquement), le choix du **thème** et **Se déconnecter**.
 
-Dans **Mon compte**, le TOTP et les clés d'accès sont regroupés dans la même carte. Dans Administration > Comptes, le menu « Actions » d'un compte permet de le renommer (y compris le vôtre : la session reste ouverte, le nouvel identifiant sert à la connexion suivante).
+Dans **Mon compte**, le TOTP et les clés d'accès sont regroupés dans la même carte. Dans Administration > Comptes, un clic sur un compte ouvre sa page : identifiant (renommage, y compris le vôtre : la session reste ouverte, le nouvel identifiant sert à la connexion suivante), rôle, réinitialisation du mot de passe et du TOTP, déverrouillage, suppression. Personne ne peut modifier son propre rôle ni supprimer son propre compte.
 
 Chaque compte configure son TOTP à sa première connexion. L'application garde toujours au moins un administrateur.
 

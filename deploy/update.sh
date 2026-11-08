@@ -16,7 +16,9 @@ APP_DIR=/opt/inventory
 
 # Une archive ou un dossier est retenu seulement s'il contient bien l'application (deploy/install.sh).
 is_app_dir() { [ -f "$1/deploy/install.sh" ] && grep -q '"name": *"inventory"' "$1/package.json" 2>/dev/null; }
-is_app_archive() { tar tzf "$1" 2>/dev/null | grep -qE '^[^/]+/deploy/install\.sh$'; }
+# (liste lue en entier avant le test : avec « grep -q » dans un tube, tar est interrompu et
+#  pipefail fait échouer le test sur les grosses archives)
+is_app_archive() { local list; list=$(tar tzf "$1" 2>/dev/null) || return 1; grep -qE '^(\./)?[^/]+/deploy/install\.sh$' <<< "$list"; }
 
 cleanup_old() {
   local dirs=() parent d f found=()

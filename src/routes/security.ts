@@ -207,13 +207,10 @@ export async function securityRoutes(app: FastifyInstance) {
   });
 
   // ================= Gestion des comptes (administrateurs) =================
-  app.get('/administration/comptes', async (req, reply) => {
-    if (!requireAdmin(req, reply)) return;
-    const users = await db
-      .selectFrom('users')
-      .select(['id', 'username', 'role', 'totp_enabled', 'locked_until', 'created_at', 'oidc_sub'])
-      .orderBy('username')
-      .execute();
+  async function accountRows(onlyId?: number) {
+    let q = db.selectFrom('users').select(['id', 'username', 'role', 'totp_enabled', 'locked_until', 'created_at', 'oidc_sub', 'password_changed_at']).orderBy('username');
+    if (onlyId) q = q.where('id', '=', onlyId);
+    const users = await q.execute();
     const pk = await db.selectFrom('webauthn_credentials').select(['user_id', db.fn.countAll<number>().as('n')]).groupBy('user_id').execute();
     const lastLogin = await db
       .selectFrom('audit_log')
@@ -222,14 +219,30 @@ export async function securityRoutes(app: FastifyInstance) {
       .where('action', '=', 'succes')
       .groupBy('entity_id')
       .execute();
-    return render(req, reply, 'accounts', {
-      title: 'Comptes',
-      users: users.map((u) => ({
-        ...u,
-        passkeys: Number(pk.find((p) => p.user_id === u.id)?.n ?? 0),
-        lastLogin: lastLogin.find((l) => l.entity_id === u.id)?.at ?? null,
-        locked: !!u.locked_until && new Date(u.locked_until).getTime() > Date.now(),
-      })),
+    return users.map((u) => ({
+      ...u,
+      passkeys: Number(pk.find((p) => p.user_id === u.id)?.n ?? 0),
+      lastLogin: lastLogin.find((l) => l.entity_id === u.id)?.at ?? null,
+      locked: !!u.locked_until && new Date(u.locked_until).getTime() > Date.now(),
+    }));
+  }
+
+  app.get('/administration/comptes', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    return render(req, reply, 'accounts', { title: 'Comptes', users: await accountRows(), minLength: config.passwordMinLength });
+  });
+
+  app.get('/administration/comptes/:uid', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    const uid = id((req.params as Body).uid);
+    const [account] = uid ? await accountRows(uid) : [];
+    if (!account) return reply.callNotFound();
+    const sessions = await db.selectFrom('sessions').select(db.fn.countAll<number>().as('n')).where('user_id', '=', account.id).executeTakeFirstOrThrow();
+    return render(req, reply, 'account-edit', {
+      title: account.username,
+      account: { ...account, sessions: Number(sessions.n) },
+      self: account.id === req.user!.id,
+      admins: await adminCount(),
       minLength: config.passwordMinLength,
     });
   });
@@ -262,7 +275,7 @@ export async function securityRoutes(app: FastifyInstance) {
     if (!u) return reply.callNotFound();
     const body = req.body as Body;
     const action = str(body, 'action');
-    const back = () => redirect(req, reply, '/administration/comptes');
+    const back = () => redirect(req, reply, `/administration/comptes/${u.id}`);
     switch (action) {
       case 'rename': {
         const username = str(body, 'username', 64);
@@ -286,6 +299,10 @@ export async function securityRoutes(app: FastifyInstance) {
         return back();
       }
       case 'role': {
+        if (u.id === req.user!.id) {
+          setFlash(reply, 'erreur', 'Vous ne pouvez pas modifier votre propre rôle.');
+          return back();
+        }
         const role = str(body, 'role') === 'admin' ? 'admin' : 'lecture';
         if (u.role === 'admin' && role !== 'admin' && (await adminCount()) <= 1) {
           setFlash(reply, 'erreur', 'Impossible : il doit rester au moins un administrateur.');
@@ -343,7 +360,7 @@ export async function securityRoutes(app: FastifyInstance) {
         await audit(req, 'compte', u.id, 'suppression', `Compte « ${u.username} » supprimé par ${req.user!.username}`);
         alert('Compte supprimé', [`Compte : ${u.username}`, `Par : ${req.user!.username}`]);
         setFlash(reply, 'ok', `Compte « ${u.username} » supprimé.`);
-        return back();
+        return redirect(req, reply, '/administration/comptes');
       }
     }
     return reply.code(400).send('Action inconnue');

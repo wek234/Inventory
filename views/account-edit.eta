@@ -1,0 +1,114 @@
+<% layout('/layout') %>
+<%~ include('/_subnav', { space: 'administration', path: it.path, h: it.h }) %>
+<% const u = it.account; const self = it.self; %>
+<div class="page-head">
+  <div>
+    <a class="btn btn-back" href="/administration/comptes">Retour aux comptes</a>
+    <div class="account-title">
+      <span class="avatar avatar-lg" aria-hidden="true"><%= u.username.slice(0, 1).toUpperCase() %></span>
+      <div>
+        <h1><%= u.username %></h1>
+        <div class="row">
+          <span class="badge <%= u.role === 'admin' ? 'badge-violet' : 'badge-gris' %>"><%= u.role === 'admin' ? 'Administrateur' : 'Lecture seule' %></span>
+          <% if (self) { %><span class="badge badge-bleu">vous</span><% } %>
+          <% if (u.locked) { %><span class="badge badge-rouge">verrouillé</span><% } %>
+          <span class="muted small">créé le <%= it.h.dateTime(u.created_at) %> · dernière connexion <%= u.lastLogin ? 'le ' + it.h.dateTime(u.lastLogin) : 'jamais' %></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="cols">
+  <div class="stack">
+    <section class="card">
+      <div class="card-head"><h2>Identifiant</h2></div>
+      <div class="card-body">
+        <form method="post" action="/administration/comptes/<%= u.id %>" class="stack">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="rename">
+          <div class="field">
+            <label for="r-name">Identifiant de connexion</label>
+            <input id="r-name" type="text" name="username" value="<%= u.username %>" pattern="[A-Za-z0-9._\-]{3,64}" maxlength="64" required title="3 à 64 caractères : lettres, chiffres, . _ -">
+            <span class="hint">3 à 64 caractères : lettres, chiffres, . _ -<%= self ? '. Votre session reste ouverte ; le nouvel identifiant servira à la prochaine connexion.' : '. La personne devra utiliser le nouvel identifiant.' %></span>
+          </div>
+          <div><button class="btn btn-primary" type="submit">Renommer</button></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Rôle</h2></div>
+      <div class="card-body">
+        <% if (self) { %>
+          <p><strong><%= u.role === 'admin' ? 'Administrateur' : 'Lecture seule' %></strong></p>
+          <p class="small muted">Vous ne pouvez pas modifier votre propre rôle. Un autre administrateur peut le faire.</p>
+        <% } else { %>
+        <form method="post" action="/administration/comptes/<%= u.id %>" class="stack">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="role">
+          <div class="choice-list">
+            <label class="choice"><input type="radio" name="role" value="admin" <%= u.role === 'admin' ? 'checked' : '' %>><span><strong>Administrateur</strong><span class="muted small">tous les droits, y compris l’administration</span></span></label>
+            <label class="choice"><input type="radio" name="role" value="lecture" <%= u.role === 'lecture' ? 'checked' : '' %>><span><strong>Lecture seule</strong><span class="muted small">tableau de bord et objets, sans aucune modification</span></span></label>
+          </div>
+          <% if (u.role === 'admin' && it.admins <= 1) { %><p class="small muted">C’est le seul administrateur : il ne peut pas passer en lecture seule.</p><% } %>
+          <div><button class="btn" type="submit">Appliquer le rôle</button></div>
+        </form>
+        <% } %>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Mot de passe</h2></div>
+      <div class="card-body">
+        <form method="post" action="/administration/comptes/<%= u.id %>" class="stack" autocomplete="off">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="password">
+          <input type="text" name="username_hint" value="<%= u.username %>" autocomplete="username" class="hidden" aria-hidden="true" tabindex="-1">
+          <div class="field">
+            <label for="r-pw">Nouveau mot de passe</label>
+            <input id="r-pw" type="password" name="password" minlength="<%= it.minLength %>" autocomplete="new-password" required>
+            <span class="hint"><%= it.minLength %> caractères minimum.<%= self ? ' Pour votre compte, « Mon compte » permet aussi de le changer avec votre mot de passe actuel.' : ' Les sessions ouvertes de ce compte seront fermées.' %></span>
+          </div>
+          <div><button class="btn" type="submit">Réinitialiser le mot de passe</button></div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card-head"><h2>Sécurité</h2></div>
+      <div class="card-body">
+        <div class="kv">
+          <div class="k">TOTP</div><div class="v"><%= u.totp_enabled ? 'configuré' : 'à configurer à la prochaine connexion' %></div>
+          <div class="k">Clés d’accès</div><div class="v"><%= u.passkeys %></div>
+          <div class="k">Sessions ouvertes</div><div class="v"><%= u.sessions %></div>
+          <div class="k">État</div><div class="v"><%= u.locked ? 'verrouillé jusqu’au ' + it.h.dateTime(u.locked_until) : 'actif' %></div>
+        </div>
+      </div>
+      <% if (u.locked || !self) { %>
+      <div class="card-body stack section-split">
+        <% if (u.locked) { %>
+        <form method="post" action="/administration/comptes/<%= u.id %>"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="unlock"><button class="btn btn-sm" type="submit">Déverrouiller</button></form>
+        <% } %>
+        <% if (!self) { %>
+        <form method="post" action="/administration/comptes/<%= u.id %>" data-confirm="Réinitialiser le TOTP de « <%= u.username %> » ? Ses sessions seront fermées et un nouvel enrôlement lui sera demandé."><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="totp"><button class="btn btn-sm" type="submit">Réinitialiser le TOTP</button><p class="hint mt-xs">Téléphone perdu : un nouveau QR code sera demandé à la prochaine connexion.</p></form>
+        <% } %>
+      </div>
+      <% } %>
+      <% if (self) { %><div class="card-body section-split"><p class="small muted">Votre TOTP et vos clés d’accès se gèrent dans <a href="/compte">Mon compte</a>.</p></div><% } %>
+    </section>
+
+    <% if (!self) { %>
+    <section class="card danger-zone">
+      <div class="card-head"><h2>Supprimer le compte</h2></div>
+      <div class="card-body">
+        <p class="small muted">Le compte, ses sessions, ses clés d’accès et ses jetons d’API sont supprimés. L’historique de ses actions est conservé.</p>
+        <% if (u.role === 'admin' && it.admins <= 1) { %>
+          <p class="small muted">Impossible : c’est le seul administrateur.</p>
+        <% } else { %>
+        <form method="post" action="/administration/comptes/<%= u.id %>" data-confirm="Supprimer définitivement le compte « <%= u.username %> » ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="delete"><button class="btn btn-danger" type="submit">Supprimer le compte</button></form>
+        <% } %>
+      </div>
+    </section>
+    <% } %>
+  </div>
+</div>
