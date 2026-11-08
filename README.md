@@ -60,15 +60,27 @@ Les cookies de session ne circulent qu'en HTTPS : passez toujours par l'adresse 
 **Organisation du menu** :
 
 - **Tableau de bord**, **Objets** ;
-- **Outils** (groupe repliable, retenu ouvert ou fermé) : corbeille, rangement, historique, import, export ;
+- **Outils** (groupe repliable, retenu ouvert ou fermé) : rangement, corbeille, historique, import, export ;
 - **Paramètres** : catégories (et leurs caractéristiques), emplacements, statuts ;
 - en bas, **Rechercher** (`Ctrl+K`) et le bouton du compte (initiale et identifiant) : il ouvre **Mon compte**, **Administration** (système, comptes, personnes ; administrateurs uniquement), le choix du **thème** et **Se déconnecter**.
 
-Dans **Mon compte**, le TOTP et les clés d'accès sont regroupés dans la même carte.
+Dans **Mon compte**, le TOTP et les clés d'accès sont regroupés dans la même carte. Dans Administration > Comptes, le menu « Actions » d'un compte permet de le renommer (y compris le vôtre : la session reste ouverte, le nouvel identifiant sert à la connexion suivante).
 
 Chaque compte configure son TOTP à sa première connexion. L'application garde toujours au moins un administrateur.
 
 ## 5. Mettre à jour sans perte de données
+
+À partir de la 1.5.2, une seule commande suffit (la page Administration l'affiche quand une nouvelle version est publiée) :
+
+```bash
+bash /opt/inventory/deploy/update.sh            # dernière version publiée
+bash /opt/inventory/deploy/update.sh 1.5.2      # version précise
+bash /opt/inventory/deploy/update.sh --force    # réinstalle la version en place
+```
+
+Le script télécharge la release GitHub (l'archive jointe si elle existe, sinon le code source), lance `deploy/install.sh` (sauvegarde, installation, migrations, redémarrage), puis liste les anciennes archives et dossiers extraits de l'application trouvés dans le dossier courant et le dossier personnel, et demande confirmation (`o/N`) avant de les supprimer. Seuls les dossiers et archives qui contiennent réellement l'application sont proposés ; les dépôts git et les autres fichiers ne sont jamais touchés.
+
+Méthode manuelle, toujours possible :
 
 L'archive « Source code (tar.gz) » d'une release GitHub convient : si le code n'est pas compilé (pas de dossier `dist/`), le script le compile lui-même. Lancez-le avec `bash` (GitHub ne conserve pas toujours le droit d'exécution).
 

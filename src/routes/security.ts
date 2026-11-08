@@ -264,6 +264,27 @@ export async function securityRoutes(app: FastifyInstance) {
     const action = str(body, 'action');
     const back = () => redirect(req, reply, '/administration/comptes');
     switch (action) {
+      case 'rename': {
+        const username = str(body, 'username', 64);
+        if (!/^[A-Za-z0-9._-]{3,64}$/.test(username)) {
+          setFlash(reply, 'erreur', 'Identifiant invalide (3 à 64 caractères : lettres, chiffres, . _ -).');
+          return back();
+        }
+        if (username === u.username) {
+          setFlash(reply, 'ok', 'Identifiant inchangé.');
+          return back();
+        }
+        const taken = await db.selectFrom('users').select('id').where('username', '=', username).where('id', '!=', u.id).executeTakeFirst();
+        if (taken) {
+          setFlash(reply, 'erreur', `L’identifiant « ${username} » est déjà utilisé.`);
+          return back();
+        }
+        await db.updateTable('users').set({ username }).where('id', '=', u.id).execute();
+        await audit(req, 'compte', u.id, 'renommage', `Compte « ${u.username} » renommé en « ${username} » par ${req.user!.username}`, { Identifiant: { avant: u.username, apres: username } });
+        alert('Compte renommé', [`Ancien identifiant : ${u.username}`, `Nouvel identifiant : ${username}`, `Par : ${req.user!.username}`]);
+        setFlash(reply, 'ok', u.id === req.user!.id ? `Votre identifiant est maintenant « ${username} » : utilisez-le à la prochaine connexion.` : `« ${u.username} » renommé en « ${username} ».`);
+        return back();
+      }
       case 'role': {
         const role = str(body, 'role') === 'admin' ? 'admin' : 'lecture';
         if (u.role === 'admin' && role !== 'admin' && (await adminCount()) <= 1) {

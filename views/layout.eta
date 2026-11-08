@@ -26,7 +26,7 @@
     ['/objets', 'Objets', 'items', under('/objets')],
   ];
   const tools = it.canEdit ? [
-    ['/corbeille', 'Corbeille', 'trash'], ['/rangement', 'Rangement', 'scan'], ['/historique', 'Historique', 'history'], ['/import', 'Import', 'import'], ['/export', 'Export', 'export'],
+    ['/rangement', 'Rangement', 'scan'], ['/corbeille', 'Corbeille', 'trash'], ['/historique', 'Historique', 'history'], ['/import', 'Import', 'import'], ['/export', 'Export', 'export'],
   ] : [];
   const settingsActive = ['/parametres', '/categories', '/emplacements', '/statuts'].some(under);
   const adminActive = ['/administration', '/personnes'].some(under);

@@ -30,6 +30,11 @@
               <summary class="btn btn-sm">Actions</summary>
               <div class="stack mt">
                 <form method="post" action="/administration/comptes/<%= u.id %>" class="row">
+                  <input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="rename">
+                  <input type="text" name="username" value="<%= u.username %>" pattern="[A-Za-z0-9._\-]{3,64}" maxlength="64" required aria-label="Nouvel identifiant de <%= u.username %>" title="3 à 64 caractères : lettres, chiffres, . _ -">
+                  <button class="btn btn-sm" type="submit">Renommer</button>
+                </form>
+                <form method="post" action="/administration/comptes/<%= u.id %>" class="row">
                   <input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="password">
                   <input type="password" name="password" minlength="<%= it.minLength %>" placeholder="Nouveau mot de passe" autocomplete="new-password" required aria-label="Nouveau mot de passe">
                   <button class="btn btn-sm" type="submit">Réinitialiser</button>

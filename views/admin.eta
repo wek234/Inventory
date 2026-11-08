@@ -17,9 +17,8 @@
       </div>
       <% if (it.newer) { %>
         <div class="update-box new"><strong>Nouvelle version disponible : <%= r.version %>.</strong> Pour mettre à jour, dans le conteneur (en root) :</div>
-        <pre class="note mono pre">cd ~ && curl -fsSLo inventory-<%= r.version %>.tar.gz https://github.com/<%= a.updateRepo %>/archive/refs/tags/<%= r.tag %>.tar.gz
-tar xzf inventory-<%= r.version %>.tar.gz && cd "$(tar tzf inventory-<%= r.version %>.tar.gz | head -1 | cut -d/ -f1)"
-bash deploy/install.sh</pre>
+        <pre class="note mono pre">bash /opt/inventory/deploy/update.sh</pre>
+        <p class="small muted">Le script télécharge la version, sauvegarde la base et l’application, installe, puis propose de supprimer les anciennes archives et dossiers extraits.</p>
         <% if (r.notes) { %><details><summary class="small">Notes de version</summary><div class="note pre mt"><%= r.notes %></div></details><% } %>
       <% } else if (r && r.ok) { %>
         <div class="update-box ok">L’application est à jour.</div>
