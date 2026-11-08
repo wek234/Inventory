@@ -15,32 +15,32 @@
 <body>
 <%
   const nav = [
-    ['/', 'Tableau de bord'], ['/objets', 'Objets'], ['/emplacements', 'Emplacements'], ['/categories', 'Catégories'], ['/statuts', 'Statuts'],
-    null, ['/import', 'Import'], ['/export', 'Export'], ['/historique', 'Historique']
+    ['/', 'Tableau de bord', 'dashboard'], ['/objets', 'Objets', 'items'], ['/emplacements', 'Emplacements', 'locations'], ['/categories', 'Catégories', 'categories'], ['/statuts', 'Statuts', 'statuses'],
+    null, ['/import', 'Import', 'import'], ['/export', 'Export', 'export'], ['/historique', 'Historique', 'history'], ['/administration', 'Administration', 'admin']
   ];
   const active = (href) => href === '/' ? it.path === '/' : (it.path === href || it.path.startsWith(href + '/'));
   const themeLabel = { auto: 'Thème : automatique', light: 'Thème : clair', dark: 'Thème : sombre' }[it.theme];
 %>
 <header class="topbar">
-  <a class="brand" href="/">Inventaire</a>
-  <button class="btn btn-sm" type="button" data-action="menu" aria-label="Menu">Menu</button>
+  <a class="brand" href="/"><%~ it.h.icon('items') %>Inventaire</a>
+  <button class="btn btn-sm" type="button" data-action="menu" aria-label="Menu"><%~ it.h.icon('menu') %>Menu</button>
 </header>
 <div class="app">
   <nav class="sidebar" aria-label="Navigation principale">
-    <a class="brand" href="/">Inventaire</a>
+    <a class="brand" href="/"><%~ it.h.icon('items') %>Inventaire</a>
     <div class="nav">
     <% for (const n of nav) { %>
       <% if (!n) { %><div class="nav-sep"></div><% } else { %>
-      <a href="<%= n[0] %>" class="<%= active(n[0]) ? 'active' : '' %>"><%= n[1] %></a>
+      <a href="<%= n[0] %>" class="<%= active(n[0]) ? 'active' : '' %>"<%~ active(n[0]) ? ' aria-current="page"' : '' %>><%~ it.h.icon(n[2]) %><span><%= n[1] %></span></a>
       <% } %>
     <% } %>
     </div>
     <div class="sidebar-foot">
-      <div class="nav"><a href="/compte" class="<%= active('/compte') ? 'active' : '' %>">Mon compte <span class="muted small">(<%= it.user ? it.user.username : '' %>)</span></a></div>
-      <button class="btn btn-sm btn-ghost" type="button" data-action="theme" data-theme-label><%= themeLabel %></button>
+      <div class="nav"><a href="/compte" class="<%= active('/compte') ? 'active' : '' %>"><%~ it.h.icon('account') %><span>Mon compte <span class="muted small">(<%= it.user ? it.user.username : '' %>)</span></span></a></div>
+      <button class="nav-btn" type="button" data-action="theme"><%~ it.h.icon('theme') %><span data-theme-label><%= themeLabel %></span></button>
       <form method="post" action="/logout" class="inline">
         <input type="hidden" name="_csrf" value="<%= it.csrf %>">
-        <button class="btn btn-sm" type="submit">Se déconnecter</button>
+        <button class="nav-btn" type="submit"><%~ it.h.icon('logout') %><span>Se déconnecter</span></button>
       </form>
     </div>
   </nav>

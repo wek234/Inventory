@@ -169,9 +169,32 @@ const m001: Migration = {
   },
 };
 
+// 1.3.0 : statuts « à traiter », caractéristiques facultatives, informations « sans objet », suivi des étiquettes.
+const m002: Migration = {
+  async up(db: Kysely<any>) {
+    const stmts = [
+      sql`ALTER TABLE statuses ADD COLUMN to_handle TINYINT(1) NOT NULL DEFAULT 0`,
+      sql`UPDATE statuses SET to_handle = 1 WHERE name IN ('À réparer', 'En réparation')`,
+      sql`ALTER TABLE attribute_defs ADD COLUMN optional TINYINT(1) NOT NULL DEFAULT 0`,
+      sql`ALTER TABLE items ADD COLUMN label_printed_at DATETIME NULL`,
+      sql`CREATE TABLE item_na (
+        item_id INT UNSIGNED NOT NULL,
+        field VARCHAR(130) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (item_id, field),
+        CONSTRAINT fk_na_item FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    ];
+    for (const s of stmts) await s.execute(db);
+  },
+  async down() {
+    throw new Error('Pas de retour arrière automatique');
+  },
+};
+
 class Provider implements MigrationProvider {
   async getMigrations() {
-    return { '001_init': m001 };
+    return { '001_init': m001, '002_dashboard': m002 };
   }
 }
 

@@ -173,7 +173,8 @@ export async function treeRoutes(app: FastifyInstance) {
         .executeTakeFirst();
       if (clash && clash.id !== exceptId) error = `Une caractéristique « ${name} » existe déjà dans cette branche (${tree.byId.get(clash.category_id)?.path}).`;
     }
-    return { error, name, type: type as AttrType, unit: type === 'number' ? unit : null, options: type === 'select' ? [...new Set(options)] : [], sort };
+    const optional = str(body, 'optional') === '1' ? 1 : 0;
+    return { error, name, type: type as AttrType, unit: type === 'number' ? unit : null, options: type === 'select' ? [...new Set(options)] : [], sort, optional };
   }
 
   app.post('/categories/:id/caracteristiques', async (req, reply) => {
@@ -188,7 +189,7 @@ export async function treeRoutes(app: FastifyInstance) {
     const max = await db.selectFrom('attribute_defs').select(sql<number>`COALESCE(MAX(sort_order), -1)`.as('m')).where('category_id', '=', cat.id).executeTakeFirstOrThrow();
     const r = await db
       .insertInto('attribute_defs')
-      .values({ category_id: cat.id, name: d.name, type: d.type, unit: d.unit, options: d.options.length ? JSON.stringify(d.options) : null, sort_order: Number(max.m) + 1 })
+      .values({ category_id: cat.id, name: d.name, type: d.type, unit: d.unit, options: d.options.length ? JSON.stringify(d.options) : null, sort_order: Number(max.m) + 1, optional: d.optional })
       .executeTakeFirstOrThrow();
     await audit(req, 'categorie', cat.id, 'caracteristique', `Caractéristique « ${d.name} » ajoutée à « ${cat.name} »`);
     setFlash(reply, 'ok', `Caractéristique « ${d.name} » ajoutée.`);
@@ -221,7 +222,7 @@ export async function treeRoutes(app: FastifyInstance) {
     await db.transaction().execute(async (trx) => {
       await trx
         .updateTable('attribute_defs')
-        .set({ name: d.name, type: d.type, unit: d.unit, options: d.options.length ? JSON.stringify(d.options) : null, sort_order: d.sort })
+        .set({ name: d.name, type: d.type, unit: d.unit, options: d.options.length ? JSON.stringify(d.options) : null, sort_order: d.sort, optional: d.optional })
         .where('id', '=', def.id)
         .execute();
       // Les valeurs gardent une copie du nom et de l'unité (recherche et export).
@@ -233,6 +234,7 @@ export async function treeRoutes(app: FastifyInstance) {
     if (def.type !== d.type) changes['Type'] = { avant: def.type, apres: d.type };
     if (JSON.stringify(parseOptions(def.options)) !== JSON.stringify(d.options)) changes['Options'] = { avant: parseOptions(def.options).join(', '), apres: d.options.join(', ') };
     if (def.sort_order !== d.sort) changes['Ordre'] = { avant: def.sort_order, apres: d.sort };
+    if (Number(def.optional) !== d.optional) changes['Facultative'] = { avant: def.optional ? 'oui' : 'non', apres: d.optional ? 'oui' : 'non' };
     if (Object.keys(changes).length) await audit(req, 'categorie', def.category_id, 'caracteristique', `Caractéristique « ${d.name} » modifiée`, changes);
     setFlash(reply, 'ok', 'Caractéristique enregistrée.');
     return redirect(req, reply, defBack(def.category_id));

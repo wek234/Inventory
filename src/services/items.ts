@@ -6,8 +6,8 @@ import { escapeLike, id as toId } from './forms.js';
 
 export interface ItemFilters {
   q: string;
-  cat: number | null;
-  loc: number | null;
+  cat: number | 'none' | null;
+  loc: number | 'none' | null;
   status: number | 'none' | null;
   attr: string;
   op: 'eq' | 'contains' | 'gt' | 'lt' | 'exists' | 'missing';
@@ -16,7 +16,16 @@ export interface ItemFilters {
   sort: 'name' | 'brand' | 'category' | 'location' | 'status' | 'updated' | 'created';
   dir: 'asc' | 'desc';
   ids: number[]; // sélection explicite (étiquettes, export) : remplace les autres filtres
+  manque: '' | 'photo' | 'serie' | 'carac'; // fiches incomplètes
+  etiquette: '' | 'jamais'; // étiquette jamais imprimée
+  caracIds?: number[]; // calculé par resolveFilters pour manque=carac
 }
+
+export const MANQUES: Record<Exclude<ItemFilters['manque'], ''>, string> = {
+  photo: 'Sans photo',
+  serie: 'Sans n° de série',
+  carac: 'Caractéristiques manquantes',
+};
 
 export const SORTS: Record<ItemFilters['sort'], string> = {
   name: 'Nom',
@@ -43,8 +52,8 @@ export function parseFilters(q: Record<string, unknown>): ItemFilters {
   const status = s('status');
   return {
     q: s('q'),
-    cat: toId(q.cat),
-    loc: toId(q.loc),
+    cat: s('cat') === 'none' ? 'none' : toId(q.cat),
+    loc: s('loc') === 'none' ? 'none' : toId(q.loc),
     status: status === 'none' ? 'none' : toId(status),
     attr: s('attr', 120),
     op: op in OPS ? op : 'contains',
@@ -52,6 +61,8 @@ export function parseFilters(q: Record<string, unknown>): ItemFilters {
     lot: s('lot') === '1',
     sort: sort in SORTS ? sort : 'name',
     dir: s('dir') === 'desc' ? 'desc' : 'asc',
+    manque: (['photo', 'serie', 'carac'].includes(s('manque')) ? s('manque') : '') as ItemFilters['manque'],
+    etiquette: s('etiquette') === 'jamais' ? 'jamais' : '',
     ids: [...new Set(s('ids', 20000).split(',').map((x) => toId(x)).filter((x): x is number => x !== null))].slice(0, 2000),
   };
 }
@@ -67,13 +78,15 @@ export function filterParams(f: ItemFilters): Record<string, string | number | n
     op: f.attr ? f.op : null,
     val: f.attr ? f.val : null,
     lot: f.lot ? 1 : null,
+    manque: f.manque || null,
+    etiquette: f.etiquette || null,
     sort: f.sort === 'name' ? null : f.sort,
     dir: f.dir === 'asc' ? null : f.dir,
   };
 }
 
 export function hasFilters(f: ItemFilters) {
-  return !!(f.q || f.cat || f.loc || f.status || f.attr || f.lot);
+  return !!(f.q || f.cat || f.loc || f.status || f.attr || f.lot || f.manque || f.etiquette);
 }
 
 export function buildItemQuery(f: ItemFilters, catTree: Tree, locTree: Tree) {
@@ -112,8 +125,22 @@ export function buildItemQuery(f: ItemFilters, catTree: Tree, locTree: Tree) {
       ]),
     );
   }
-  if (f.cat) qb = qb.where('items.category_id', 'in', descendantIds(catTree, f.cat).concat([-1]));
-  if (f.loc) qb = qb.where('items.location_id', 'in', descendantIds(locTree, f.loc).concat([-1]));
+  if (f.cat === 'none') qb = qb.where('items.category_id', 'is', null);
+  else if (f.cat) qb = qb.where('items.category_id', 'in', descendantIds(catTree, f.cat).concat([-1]));
+  if (f.loc === 'none') qb = qb.where('items.location_id', 'is', null);
+  else if (f.loc) qb = qb.where('items.location_id', 'in', descendantIds(locTree, f.loc).concat([-1]));
+  if (f.etiquette === 'jamais') qb = qb.where('items.label_printed_at', 'is', null);
+  if (f.manque === 'serie') {
+    qb = qb
+      .where((eb) => eb.or([eb('items.serial', 'is', null), eb('items.serial', '=', '')]))
+      .where((eb) => eb.not(eb.exists(eb.selectFrom('item_na as n').select('n.item_id').whereRef('n.item_id', '=', 'items.id').where('n.field', '=', 'serial'))));
+  }
+  if (f.manque === 'photo') {
+    qb = qb
+      .where((eb) => eb.not(eb.exists(eb.selectFrom('attachments as a').select('a.id').whereRef('a.item_id', '=', 'items.id').where('a.kind', '=', 'photo'))))
+      .where((eb) => eb.not(eb.exists(eb.selectFrom('item_na as n').select('n.item_id').whereRef('n.item_id', '=', 'items.id').where('n.field', '=', 'photo'))));
+  }
+  if (f.manque === 'carac') qb = qb.where('items.id', 'in', (f.caracIds ?? []).concat([-1]));
   if (f.status === 'none') qb = qb.where('items.status_id', 'is', null);
   else if (f.status) qb = qb.where('items.status_id', '=', f.status);
   if (f.lot) qb = qb.where('items.quantity', '>', 1);
@@ -193,4 +220,13 @@ export async function attributeNames(): Promise<string[]> {
     .unionAll(db.selectFrom('attribute_defs').select('name'))
     .execute();
   return [...new Set(rows.map((r) => r.name))].sort((a, b) => a.localeCompare(b, 'fr'));
+}
+
+// Complète les filtres qui demandent un calcul préalable (caractéristiques manquantes).
+export async function resolveFilters(f: ItemFilters, catTree: Tree): Promise<ItemFilters> {
+  if (f.manque === 'carac') {
+    const { completenessSummary } = await import('./completeness.js');
+    f.caracIds = (await completenessSummary(catTree)).attrs;
+  }
+  return f;
 }

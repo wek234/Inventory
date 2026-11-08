@@ -1,0 +1,90 @@
+<% layout('/layout') %>
+<% const a = it.app, s = it.system, st = it.storage, d = it.database, r = it.release; %>
+<div class="page-head"><h1>Administration</h1></div>
+<div class="stack">
+  <section class="card" id="version">
+    <div class="card-head">
+      <h2>Version</h2>
+      <form method="post" action="/administration/verifier" class="inline"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm" type="submit">Vérifier maintenant</button></form>
+    </div>
+    <div class="card-body stack">
+      <div class="kv">
+        <div class="k">Version installée</div><div class="v"><strong><%= a.version %></strong></div>
+        <div class="k">Dernière version publiée</div><div class="v"><% if (r && r.ok) { %><a href="<%= r.url %>" target="_blank" rel="noopener noreferrer"><%= r.name %></a><% if (r.publishedAt) { %> <span class="muted small">(<%= it.h.dateTime(r.publishedAt) %>)</span><% } %><% } else if (r) { %><span class="muted"><%= r.error %></span><% } else { %><span class="muted">Vérification désactivée</span><% } %></div>
+        <div class="k">Dépôt surveillé</div><div class="v"><% if (a.updateRepo) { %><a href="https://github.com/<%= a.updateRepo %>/releases" target="_blank" rel="noopener noreferrer"><%= a.updateRepo %></a><% } else { %><span class="muted">aucun</span><% } %></div>
+        <% if (r) { %><div class="k">Dernière vérification</div><div class="v small muted"><%= it.h.dateTime(r.checkedAt) %> (automatique toutes les 6 heures)</div><% } %>
+      </div>
+      <% if (it.newer) { %>
+        <div class="update-box new"><strong>Nouvelle version disponible : <%= r.version %>.</strong> Pour mettre à jour, dans le conteneur (en root) :</div>
+        <pre class="note mono pre">cd ~ && curl -fsSLo inventory-<%= r.version %>.tar.gz https://github.com/<%= a.updateRepo %>/archive/refs/tags/<%= r.tag %>.tar.gz
+tar xzf inventory-<%= r.version %>.tar.gz && cd "$(tar tzf inventory-<%= r.version %>.tar.gz | head -1 | cut -d/ -f1)"
+bash deploy/install.sh</pre>
+        <% if (r.notes) { %><details><summary class="small">Notes de version</summary><div class="note pre mt"><%= r.notes %></div></details><% } %>
+      <% } else if (r && r.ok) { %>
+        <div class="update-box ok">L’application est à jour.</div>
+      <% } %>
+    </div>
+  </section>
+
+  <div class="grid-2">
+    <section class="card">
+      <div class="card-head"><h2>Application</h2></div>
+      <div class="card-body"><div class="kv">
+        <div class="k">Node.js</div><div class="v"><%= a.node %></div>
+        <div class="k">Démarrée le</div><div class="v"><%= it.h.dateTime(a.startedAt) %> (depuis <%= a.uptime %>)</div>
+        <div class="k">Mémoire du processus</div><div class="v"><%= a.rss %> <span class="muted small">(tas JS <%= a.heap %>)</span></div>
+        <div class="k">Adresse publique</div><div class="v"><%= a.publicUrl %></div>
+        <div class="k">Port d’écoute</div><div class="v"><%= a.port %></div>
+        <div class="k">Proxys de confiance</div><div class="v small mono"><%= a.proxies %></div>
+        <div class="k">Sessions</div><div class="v"><%= a.sessionDays %> jours, prolongées à l’usage</div>
+        <div class="k">Connexion</div><div class="v">Verrouillage <%= a.lockMin %> min après <%= a.loginMax %> échecs</div>
+        <div class="k">Fichiers joints</div><div class="v"><%= a.uploadMb %> Mo maximum</div>
+        <div class="k">SSO OpenID Connect</div><div class="v"><%= a.oidc ? 'activé' : 'désactivé' %></div>
+        <div class="k">Fuseau horaire</div><div class="v"><%= a.timezone %></div>
+      </div></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Système</h2></div>
+      <div class="card-body"><div class="kv">
+        <div class="k">Hôte</div><div class="v"><%= s.host %></div>
+        <div class="k">Système</div><div class="v"><%= s.os %></div>
+        <div class="k">Noyau</div><div class="v"><%= s.kernel %> (<%= s.arch %>)</div>
+        <div class="k">Processeur</div><div class="v small"><%= s.cpu %></div>
+        <div class="k">Charge (1 / 5 / 15 min)</div><div class="v"><%= s.load %></div>
+        <div class="k">Allumé depuis</div><div class="v"><%= s.uptime %></div>
+        <div class="k">Mémoire</div><div class="v"><div class="meter-line"><span><%= it.fmt.bytes(s.memUsed) %> utilisés</span><span class="muted small">sur <%= it.fmt.bytes(s.memTotal) %></span><progress class="bar" value="<%= s.memUsed %>" max="<%= s.memTotal %>"></progress></div></div>
+      </div></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Stockage</h2></div>
+      <div class="card-body"><div class="kv">
+        <% if (st.disk) { const used = st.disk.total - st.disk.free; %>
+        <div class="k">Disque des données</div><div class="v"><div class="meter-line"><span><%= it.fmt.bytes(st.disk.free) %> libres</span><span class="muted small">sur <%= it.fmt.bytes(st.disk.total) %></span><progress class="bar <%= st.disk.free / st.disk.total < 0.1 ? 'bar-rouge' : '' %>" value="<%= used %>" max="<%= st.disk.total %>"></progress></div></div>
+        <% } %>
+        <div class="k">Photos et documents</div><div class="v"><%= it.fmt.bytes(st.uploads.bytes) %> <span class="muted small">(<%= it.h.plural(st.uploads.files, 'fichier', 'fichiers') %>)</span></div>
+        <div class="k">Base de données</div><div class="v"><%= it.fmt.bytes(st.dbSize) %></div>
+      </div></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Base de données</h2></div>
+      <div class="card-body"><div class="kv">
+        <div class="k">MariaDB</div><div class="v"><%= d.version %></div>
+        <div class="k">Schéma</div><div class="v small"><% d.migrations.forEach((m, n) => { %><%= n ? ', ' : '' %><span class="mono"><%= m.name %></span><% }) %></div>
+        <div class="k">Contenu</div><div class="v small"><%= it.h.plural(d.counts.items, 'objet', 'objets') %>, <%= it.h.plural(d.counts.item_values, 'valeur', 'valeurs') %>, <%= it.h.plural(d.counts.attachments, 'fichier', 'fichiers') %>, <%= it.h.plural(d.counts.locations, 'emplacement', 'emplacements') %>, <%= it.h.plural(d.counts.categories, 'catégorie', 'catégories') %>, <%= it.h.plural(d.counts.maintenance, 'intervention', 'interventions') %>, <%= it.h.plural(d.counts.item_links, 'lien', 'liens') %>, <%= it.h.plural(d.counts.audit_log, 'événement', 'événements') %> d’historique</div>
+        <div class="k">Comptes</div><div class="v"><%= d.counts.users %></div>
+      </div></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Activité et sécurité</h2></div>
+      <div class="card-body"><div class="kv">
+        <div class="k">Sessions actives</div><div class="v"><a href="/compte"><%= it.activity.sessions %></a></div>
+        <div class="k">Échecs de connexion (24 h)</div><div class="v"><a href="/historique?type=connexion" class="<%= it.activity.failures ? 'warn' : '' %>"><%= it.activity.failures %></a></div>
+        <div class="k">Dernier import</div><div class="v small"><%= it.activity.lastImport ? it.h.dateTime(it.activity.lastImport.created_at) + ' : ' + it.activity.lastImport.summary : 'aucun' %></div>
+      </div></div>
+    </section>
+  </div>
+</div>

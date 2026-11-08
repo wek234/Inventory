@@ -71,7 +71,10 @@ async function isEmpty(table: 'statuses' | 'locations' | 'categories') {
 
 export async function seed() {
   if (await isEmpty('statuses')) {
-    await db.insertInto('statuses').values(STATUSES.map(([name, color], i) => ({ name, color, sort_order: i }))).execute();
+    await db
+      .insertInto('statuses')
+      .values(STATUSES.map(([name, color], i) => ({ name, color, sort_order: i, to_handle: ['À réparer', 'En réparation'].includes(name) ? 1 : 0 })))
+      .execute();
     console.log(`${STATUSES.length} statut(s) créé(s)`);
   }
   if (await isEmpty('locations')) {

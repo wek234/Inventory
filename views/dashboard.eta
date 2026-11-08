@@ -1,4 +1,8 @@
 <% layout('/layout') %>
+<%
+  const maxStatus = Math.max(1, ...it.byStatus.map(s => s.n), it.noStatus);
+  const maxCat = Math.max(1, ...it.byCategory.map(c => c.n), it.uncategorized);
+%>
 <div class="page-head">
   <h1>Tableau de bord</h1>
   <div class="actions">
@@ -7,26 +11,81 @@
       <input id="dash-q" type="search" name="q" placeholder="Rechercher un objet, une marque, un n° de série…">
       <button class="btn" type="submit">Rechercher</button>
     </form>
-    <a class="btn btn-primary" href="/objets/nouveau">Nouvel objet</a>
   </div>
 </div>
 
 <div class="stack">
+  <nav class="shortcuts" aria-label="Raccourcis">
+    <a class="btn btn-primary" href="/objets/nouveau"><%~ it.h.icon('plus') %>Nouvel objet</a>
+    <a class="btn" href="/import"><%~ it.h.icon('import') %>Importer</a>
+    <a class="btn" href="/etiquettes?etiquette=jamais"><%~ it.h.icon('qr') %>Étiquettes jamais imprimées <span class="badge badge-outline"><%= it.h.num(it.neverPrinted) %></span></a>
+    <a class="btn" href="/export/objets.csv"><%~ it.h.icon('export') %>Exporter en CSV</a>
+  </nav>
+
   <div class="grid-3">
     <div class="card stat"><div class="n"><%= it.h.num(it.total) %></div><div class="l">fiches</div></div>
     <div class="card stat"><div class="n"><%= it.h.num(it.units) %></div><div class="l">unités (lots compris)</div></div>
     <div class="card stat"><div class="n"><%= it.h.num(it.lots) %></div><div class="l">lots</div></div>
   </div>
 
+  <div class="grid-2">
+    <section class="card">
+      <div class="card-head"><h2>À traiter</h2><a class="small" href="/statuts">Choisir les statuts</a></div>
+      <% if (!it.toHandle.length) { %><div class="empty">Rien à traiter.</div><% } else { %>
+      <ul class="list">
+        <% for (const t of it.toHandle) { %>
+        <li><a href="<%= t.href %>"><% if (t.color) { %><span class="badge badge-<%= t.color %>"><%= t.label %></span><% } else { %><%= t.label %><% } %></a><a class="count-link" href="<%= t.href %>"><%= it.h.num(t.n) %></a></li>
+        <% } %>
+      </ul>
+      <% } %>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Fiches incomplètes</h2><span class="muted small">hors caractéristiques facultatives et « sans objet »</span></div>
+      <ul class="list">
+        <% for (const c of it.incomplete) { %>
+        <li><% if (c.n) { %><a href="<%= c.href %>"><%= c.label %></a><a class="count-link" href="<%= c.href %>"><%= it.h.num(c.n) %></a><% } else { %><span class="muted"><%= c.label %></span><span class="ok-text">complet</span><% } %></li>
+        <% } %>
+      </ul>
+    </section>
+  </div>
+
   <div class="grid-3">
     <section class="card">
       <div class="card-head"><h2>Par statut</h2><a class="small" href="/statuts">Gérer</a></div>
-      <ul class="list">
+      <div class="card-body bars">
         <% for (const s of it.byStatus) { %>
-        <li><a href="/objets?status=<%= s.id %>"><span class="badge badge-<%= s.color %>"><%= s.name %></span></a><span class="muted"><%= it.h.num(s.n) %></span></li>
+        <a class="bar-row" href="/objets?status=<%= s.id %>">
+          <span class="bar-label"><span class="badge badge-<%= s.color %>"><%= s.name %></span></span>
+          <progress class="bar bar-<%= s.color %>" value="<%= s.n %>" max="<%= maxStatus %>" aria-label="<%= s.name %> : <%= s.n %>"></progress>
+          <span class="bar-n"><%= it.h.num(s.n) %></span>
+        </a>
         <% } %>
-        <li><a href="/objets?status=none" class="muted">Sans statut</a><span class="muted"><%= it.h.num(it.noStatus) %></span></li>
-      </ul>
+        <a class="bar-row" href="/objets?status=none">
+          <span class="bar-label muted">Sans statut</span>
+          <progress class="bar bar-gris" value="<%= it.noStatus %>" max="<%= maxStatus %>" aria-label="Sans statut : <%= it.noStatus %>"></progress>
+          <span class="bar-n"><%= it.h.num(it.noStatus) %></span>
+        </a>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Par catégorie</h2><a class="small" href="/categories">Gérer</a></div>
+      <div class="card-body bars">
+        <% for (const c of it.byCategory) { %>
+        <a class="bar-row" href="/objets?cat=<%= c.id %>">
+          <span class="bar-label"><%= c.name %></span>
+          <progress class="bar" value="<%= c.n %>" max="<%= maxCat %>" aria-label="<%= c.name %> : <%= c.n %>"></progress>
+          <span class="bar-n"><%= it.h.num(c.n) %></span>
+        </a>
+        <% } %>
+        <% if (it.uncategorized) { %>
+        <a class="bar-row" href="/objets?cat=none">
+          <span class="bar-label muted">Sans catégorie</span>
+          <progress class="bar bar-gris" value="<%= it.uncategorized %>" max="<%= maxCat %>"></progress>
+          <span class="bar-n"><%= it.h.num(it.uncategorized) %></span>
+        </a>
+        <% } %>
+        <% if (!it.byCategory.length && !it.uncategorized) { %><p class="muted">Aucun objet.</p><% } %>
+      </div>
     </section>
     <section class="card">
       <div class="card-head"><h2>Par emplacement</h2><a class="small" href="/emplacements">Gérer</a></div>
@@ -34,16 +93,7 @@
         <% for (const l of it.byLocation) { %>
         <li><a href="/objets?loc=<%= l.id %>"><%= l.name %></a><span class="muted"><%= it.h.num(l.n) %></span></li>
         <% } %>
-        <% if (it.unlocated) { %><li><span class="muted">Sans emplacement</span><span class="muted"><%= it.h.num(it.unlocated) %></span></li><% } %>
-      </ul>
-    </section>
-    <section class="card">
-      <div class="card-head"><h2>Par catégorie</h2><a class="small" href="/categories">Gérer</a></div>
-      <ul class="list">
-        <% for (const c of it.byCategory) { %>
-        <li><a href="/objets?cat=<%= c.id %>"><%= c.name %></a><span class="muted"><%= it.h.num(c.n) %></span></li>
-        <% } %>
-        <% if (it.uncategorized) { %><li><span class="muted">Sans catégorie</span><span class="muted"><%= it.h.num(it.uncategorized) %></span></li><% } %>
+        <% if (it.unlocated) { %><li><a class="muted" href="/objets?loc=none">Sans emplacement</a><span class="muted"><%= it.h.num(it.unlocated) %></span></li><% } %>
       </ul>
     </section>
   </div>
@@ -54,11 +104,11 @@
       <div class="empty">Aucun objet pour l’instant. <a href="/objets/nouveau">Créer un objet</a> ou <a href="/import">importer un fichier</a>.</div>
     <% } else { %>
     <div class="table-wrap">
-    <table class="table responsive">
+    <table class="table responsive clickable">
       <thead><tr><th>Nom</th><th>Marque / modèle</th><th>Emplacement</th><th>Statut</th><th>Modifié</th></tr></thead>
       <tbody>
       <% for (const r of it.recent) { %>
-        <tr>
+        <tr data-href="/objets/<%= r.id %>">
           <td><a class="title" href="/objets/<%= r.id %>"><%= r.name %></a><% if (r.quantity > 1) { %> <span class="badge badge-outline">Lot × <%= r.quantity %></span><% } %></td>
           <td data-label="Marque / modèle"><%= [r.brand, r.model].filter(Boolean).join(' ') %></td>
           <td data-label="Emplacement"><%= r.locationPath || '' %></td>

@@ -23,7 +23,7 @@
       <% if (it.inheritedDefs.length) { %>
       <div class="card-body">
         <div class="label">Héritées</div>
-        <p class="small muted"><% it.inheritedDefs.forEach((d, idx) => { %><%= idx ? ', ' : '' %><%= d.name %> <span class="muted">(<%= it.h.attrTypeLabel(d.type) %><%= d.unit ? ', ' + d.unit : '' %>, de <%= d.ownerName %>)</span><% }) %></p>
+        <p class="small muted"><% it.inheritedDefs.forEach((d, idx) => { %><%= idx ? ', ' : '' %><%= d.name %> <span class="muted">(<%= it.h.attrTypeLabel(d.type) %><%= d.unit ? ', ' + d.unit : '' %><%= d.optional ? ', facultative' : '' %>, de <%= d.ownerName %>)</span><% }) %></p>
       </div>
       <% } %>
       <% if (it.ownDefs.length) { %>
@@ -46,6 +46,7 @@
                 <div class="field attr-value">
                   <label class="sr-only">Unité ou options</label>
                   <% if (d.type === 'select') { %><textarea name="options" rows="3" placeholder="Une option par ligne"><%= d.optionList.join('\n') %></textarea><% } else { %><input type="text" name="unit" value="<%= d.unit || '' %>" maxlength="32" placeholder="Unité (type Nombre)"><details class="small"><summary class="muted">Options (si passage en liste de choix)</summary><textarea name="options" rows="2" placeholder="Une option par ligne"></textarea></details><% } %>
+                  <label class="check small"><input type="checkbox" name="optional" value="1" <%= d.optional ? 'checked' : '' %>> Facultative (non comptée comme manquante)</label>
                   <span class="hint"><%= d.used ? it.h.plural(d.used, 'valeur saisie', 'valeurs saisies') : 'Aucune valeur saisie' %></span>
                 </div>
                 <div class="row">
@@ -70,6 +71,7 @@
               <select id="d-type" name="type"><% for (const t of it.h.attrTypes) { %><option value="<%= t.value %>"><%= t.label %></option><% } %></select></div>
             <div class="field"><label for="d-unit">Unité <span class="muted">(type Nombre)</span></label><input id="d-unit" name="unit" type="text" maxlength="32" placeholder="ex. W, Go, kg"></div>
             <div class="field"><label for="d-options">Options <span class="muted">(type Liste de choix, une par ligne)</span></label><textarea id="d-options" name="options" rows="2"></textarea></div>
+            <div class="field full"><label class="check"><input type="checkbox" name="optional" value="1"> Facultative : ne pas la compter dans les fiches incomplètes</label></div>
           </div>
           <div><button class="btn btn-sm" type="submit">Ajouter la caractéristique</button></div>
         </form>

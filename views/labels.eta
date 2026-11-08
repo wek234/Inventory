@@ -5,7 +5,7 @@
     <h1>Étiquettes QR</h1>
     <p class="muted small"><%= it.h.plural(it.labels.length, 'étiquette', 'étiquettes') %> au format 62 × 29 mm. Le QR code ouvre la fiche (connexion requise).<% if (it.truncated) { %> Limité aux 500 premiers objets : affinez les filtres.<% } %></p>
   </div>
-  <div class="actions"><button class="btn btn-primary" type="button" data-action="print">Imprimer</button></div>
+  <div class="actions"><button class="btn btn-primary" type="button" data-action="print" data-printed-ids="<%= (it.itemIds || []).join(',') %>">Imprimer</button></div>
 </div>
 <div class="labels">
   <% for (const l of it.labels) { %>

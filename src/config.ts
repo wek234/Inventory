@@ -62,6 +62,8 @@ export const config = {
     requireLocalTotp: bool('OIDC_REQUIRE_LOCAL_TOTP', true),
   },
   timezone: env('APP_TIMEZONE', 'Europe/Paris'),
+  // Dépôt GitHub « propriétaire/nom » interrogé pour signaler les nouvelles versions (vide = désactivé).
+  updateRepo: (process.env.UPDATE_REPO ?? 'wek234/Inventory').trim().replace(/^https:\/\/github\.com\//, '').replace(/\/(releases\/?)?$/, ''),
   logLevel: env('LOG_LEVEL', 'info'),
 };
 

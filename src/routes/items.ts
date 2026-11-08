@@ -8,8 +8,9 @@ import { loadTree, lineage, Tree } from '../services/tree.js';
 import { effectiveDefs, parseValue, rawValue, replaceItemValues, valueSummary, EffectiveDef, ValueInput, parseOptions } from '../services/attributes.js';
 import { audit, diff } from '../services/audit.js';
 import { Body, str, strs, optStr, id, intIn } from '../services/forms.js';
-import { parseFilters, buildItemQuery, orderItems, filterParams, hasFilters, attributeNames, SORTS, OPS } from '../services/items.js';
+import { parseFilters, buildItemQuery, orderItems, filterParams, hasFilters, attributeNames, resolveFilters, SORTS, OPS, MANQUES } from '../services/items.js';
 import { removeStoredFiles } from './attachments.js';
+import { itemCompleteness, isValidNaField } from '../services/completeness.js';
 
 const PAGE_SIZE = 50;
 const FREE_TYPES: AttrType[] = ['text', 'number', 'date', 'boolean'];
@@ -232,6 +233,7 @@ export async function itemRoutes(app: FastifyInstance) {
     // HTMX inscrit dans l'historique l'adresse normalisée (identique à celle mémorisée).
     if (isHtmx(req)) reply.header('HX-Push-Url', listQs ? `/objets?${listQs}` : '/objets');
     const { cats, locs, statuses } = await lookups();
+    await resolveFilters(f, cats);
     const base = buildItemQuery(f, cats, locs);
     const countRow = await db
       .selectFrom(base.as('b'))
@@ -260,6 +262,7 @@ export async function itemRoutes(app: FastifyInstance) {
       attrNames: await attributeNames(),
       sorts: SORTS,
       ops: OPS,
+      manques: MANQUES,
     };
     if (isHtmx(req) && req.headers['hx-target'] === 'resultats') return render(req, reply, 'items/_results', data);
     return render(req, reply, 'items/list', data);
@@ -340,13 +343,12 @@ export async function itemRoutes(app: FastifyInstance) {
         .execute(),
       db.selectFrom('items').select(['id', 'name']).where('id', '!=', itemId).orderBy('name').execute(),
     ]);
-    const defs = await effectiveDefs(cats, item.category_id);
-    const missing = defs.filter((d) => !values.some((v) => key(v.name) === key(d.name)));
+    const completeness = await itemCompleteness(cats, item);
     return render(req, reply, 'items/show', {
       title: item.name,
       item,
       values,
-      missing,
+      completeness,
       categoryLineage: lineage(cats, item.category_id),
       locationLineage: lineage(locs, item.location_id),
       photos: attachments.filter((a) => a.kind === 'photo'),
@@ -414,6 +416,22 @@ export async function itemRoutes(app: FastifyInstance) {
     await audit(req, 'objet', it.id, 'suppression', `Suppression de « ${it.name} »`);
     setFlash(reply, 'ok', `« ${it.name} » supprimé.`);
     return redirect(req, reply, '/objets');
+  });
+
+  // ---- Informations « sans objet » (ne comptent plus comme manquantes) ----
+  app.post('/objets/:id/sans-objet', async (req, reply) => {
+    const itemId = id((req.params as Body).id);
+    const it = itemId ? await db.selectFrom('items').select(['id', 'name']).where('id', '=', itemId).executeTakeFirst() : undefined;
+    if (!it) return reply.callNotFound();
+    const body = req.body as Body;
+    const field = str(body, 'field', 130);
+    const remove = str(body, 'action') === 'retirer';
+    if (!isValidNaField(field)) return reply.code(400).send('Champ invalide');
+    const label = field === 'photo' ? 'Photo' : field === 'serial' ? 'N° de série' : field.slice(5);
+    if (remove) await db.deleteFrom('item_na').where('item_id', '=', it.id).where('field', '=', field).execute();
+    else await db.insertInto('item_na').values({ item_id: it.id, field }).onDuplicateKeyUpdate({ field }).execute();
+    await audit(req, 'objet', it.id, 'complétude', remove ? `« ${label} » de nouveau attendu` : `« ${label} » marqué sans objet`);
+    return redirect(req, reply, `/objets/${it.id}#completude`);
   });
 
   // ---- Liens entre objets ----

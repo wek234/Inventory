@@ -33,6 +33,17 @@
       var row = t.closest('.attr-row');
       if (row) row.remove();
     } else if (a === 'print') {
+      // Mémorise l'impression (étiquettes « jamais imprimées »), puis ouvre la boîte d'impression.
+      var ids = t.dataset.printedIds;
+      var meta = document.querySelector('meta[name=csrf-token]');
+      if (ids && meta && window.fetch) {
+        fetch('/etiquettes/imprimees', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': meta.content },
+          body: 'ids=' + encodeURIComponent(ids),
+          credentials: 'same-origin'
+        }).catch(function () { /* l'impression reste possible */ });
+      }
       window.print();
     } else if (a === 'check-all' || a === 'check-none') {
       document.querySelectorAll('input[data-row-include]').forEach(function (c) {

@@ -8,7 +8,7 @@
 
 <form id="filtres" class="card card-body" method="get" action="/objets"
       hx-get="/objets" hx-target="#resultats" hx-push-url="true"
-      hx-trigger="input changed delay:350ms from:input[type=search], change from:select, submit">
+      hx-trigger="input changed delay:350ms from:(#filtres input[type=search]), change from:(#filtres select), change from:(#filtres input[type=checkbox]), submit">
   <div class="filters">
     <div class="field q">
       <label for="f-q">Recherche</label>
@@ -18,6 +18,7 @@
       <label for="f-cat">Catégorie</label>
       <select id="f-cat" name="cat">
         <option value="">Toutes</option>
+        <option value="none" <%= it.f.cat === 'none' ? 'selected' : '' %>>Sans catégorie</option>
         <% for (const c of it.cats) { %><option value="<%= c.id %>" <%= it.f.cat === c.id ? 'selected' : '' %>><%= it.h.indent(c.depth) %><%= c.name %></option><% } %>
       </select>
     </div>
@@ -25,6 +26,7 @@
       <label for="f-loc">Emplacement</label>
       <select id="f-loc" name="loc">
         <option value="">Tous</option>
+        <option value="none" <%= it.f.loc === 'none' ? 'selected' : '' %>>Sans emplacement</option>
         <% for (const l of it.locs) { %><option value="<%= l.id %>" <%= it.f.loc === l.id ? 'selected' : '' %>><%= it.h.indent(l.depth) %><%= l.name %></option><% } %>
       </select>
     </div>
@@ -58,6 +60,12 @@
   </div>
   <div class="row">
     <label class="check"><input type="checkbox" name="lot" value="1" <%= it.f.lot ? 'checked' : '' %>> Lots uniquement</label>
+    <label class="check"><input type="checkbox" name="etiquette" value="jamais" <%= it.f.etiquette ? 'checked' : '' %>> Étiquette jamais imprimée</label>
+    <label for="f-manque" class="sr-only">Complétude</label>
+    <select id="f-manque" name="manque" class="w-auto">
+      <option value="">Toutes les fiches</option>
+      <% for (const [k, v] of Object.entries(it.manques)) { %><option value="<%= k %>" <%= it.f.manque === k ? 'selected' : '' %>><%= v %></option><% } %>
+    </select>
     <noscript><button class="btn btn-sm" type="submit">Filtrer</button></noscript>
     <a class="btn btn-sm btn-ghost" href="/objets?reset=1">Réinitialiser les filtres et le tri</a>
   </div>

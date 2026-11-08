@@ -105,7 +105,7 @@ chown -R inventory:inventory /var/lib/inventory/uploads
 systemctl restart inventory
 ```
 
-## 7. Administration
+## 7. Commandes d’administration
 
 ```bash
 cli() { runuser -u inventory -- bash -c 'set -a; . /etc/inventory/inventory.env; set +a; exec node /opt/inventory/dist/cli.js "$@"' cli "$@"; }
@@ -117,7 +117,14 @@ cli list-users
 
 Journaux : `journalctl -u inventory -f`. Toutes les actions (connexions, échecs, modifications, imports) figurent aussi dans la page **Historique**.
 
-## 8. Sécurité en résumé
+## 8. Tableau de bord et administration
+
+- **À traiter** : objets dont le statut est coché « à traiter » (page Statuts), objets dans « À classer », sans emplacement, sans catégorie ou sans statut.
+- **Fiches incomplètes** : objets sans photo, sans n° de série, ou auxquels il manque des caractéristiques de leur catégorie. Une caractéristique cochée « facultative » sur sa catégorie n'est jamais comptée ; sur une fiche, le bouton « Sans objet » retire une information qui n'existe pas pour cet objet (rétablissable).
+- **Étiquettes jamais imprimées** : l'application retient les étiquettes imprimées depuis le bouton « Imprimer ».
+- **Administration** : versions (application, Node.js, MariaDB, système), mémoire, disque, taille des fichiers et de la base, sessions, échecs de connexion, et nouvelle version disponible sur GitHub. Le dépôt surveillé se règle avec `UPDATE_REPO` dans `/etc/inventory/inventory.env` (vide pour désactiver) ; la vérification nécessite que le conteneur puisse joindre `api.github.com`.
+
+## 9. Sécurité en résumé
 
 - Mots de passe hachés en argon2id ; TOTP obligatoire avec protection contre le rejeu ; secret TOTP chiffré en base (AES-256-GCM).
 - Verrouillage du compte 15 minutes après 5 échecs, plus une limite par adresse IP.
@@ -128,11 +135,11 @@ Journaux : `journalctl -u inventory -f`. Toutes les actions (connexions, échecs
 - Service systemd non privilégié, système de fichiers en lecture seule hors de `/var/lib/inventory`, appels système filtrés.
 - SSO OpenID Connect intégré mais désactivé (`OIDC_ENABLED=false`). Pour l'activer : renseigner `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, passer `OIDC_ENABLED=true`, redémarrer, puis associer votre compte dans « Mon compte ». Par défaut, le code TOTP local reste demandé après le SSO (`OIDC_REQUIRE_LOCAL_TOTP=true`).
 
-## 9. Import de fichiers Excel / CSV
+## 10. Import de fichiers Excel / CSV
 
 Menu **Import** : l'application lit toutes les feuilles du classeur et détecte la disposition (un objet par ligne, ou un objet par colonne avec une colonne d'intitulés, même décalée). Pour chaque feuille, choisissez la catégorie et ce que devient chaque colonne, puis corrigez l'aperçu ligne par ligne avant de valider. Les découpages incertains (marque d'un seul mot, stockage sans capacité, année extraite d'un texte, mémoire en Mo convertie) sont signalés en jaune. Rien n'est enregistré avant la validation finale.
 
-## 10. Développement
+## 11. Développement
 
 ```bash
 npm ci

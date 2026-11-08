@@ -45,12 +45,14 @@ export interface AttributeDefsTable {
   unit: string | null;
   options: string | null; // JSON array pour le type select
   sort_order: number;
+  optional: Generated<number>;
 }
 export interface StatusesTable {
   id: Generated<number>;
   name: string;
   color: string;
   sort_order: number;
+  to_handle: Generated<number>;
 }
 export interface ItemsTable {
   id: Generated<number>;
@@ -63,8 +65,14 @@ export interface ItemsTable {
   category_id: number | null;
   location_id: number | null;
   notes: string | null;
+  label_printed_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+export interface ItemNaTable {
+  item_id: number;
+  field: string; // 'serial' | 'photo' | 'attr:<nom>'
+  created_at: Generated<Date>;
 }
 export interface ItemValuesTable {
   id: Generated<number>;
@@ -137,6 +145,7 @@ export interface Database {
   attachments: AttachmentsTable;
   audit_log: AuditLogTable;
   import_batches: ImportBatchesTable;
+  item_na: ItemNaTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -158,6 +167,11 @@ export const pool = createPool({
   timezone: 'Z',
   dateStrings: ['DATE'],
   supportBigNumbers: true,
+});
+
+// Toutes les dates sont en UTC, y compris les valeurs par défaut CURRENT_TIMESTAMP calculées par MariaDB.
+pool.on('connection', (conn) => {
+  conn.query("SET time_zone = '+00:00'");
 });
 
 export const db = new Kysely<Database>({ dialect: new MysqlDialect({ pool }) });

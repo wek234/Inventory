@@ -4,6 +4,7 @@ import { Eta } from 'eta';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { config } from './config.js';
 import { displayValue, formatNumber, rawValue, ATTR_TYPES } from './services/attributes.js';
+import { icon } from './icons.js';
 
 const eta = new Eta({
   views: path.join(config.appRoot, 'views'),
@@ -33,6 +34,7 @@ export const helpers = {
     return s ? `?${s}` : '';
   },
   plural: (n: number, one: string, many: string) => `${formatNumber(n)} ${Math.abs(n) > 1 ? many : one}`,
+  icon,
   indent: (depth: number) => '   '.repeat(depth),
 };
 

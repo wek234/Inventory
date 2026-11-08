@@ -9,6 +9,7 @@
       <%~ include('/_status', { name: i.status_name, color: i.status_color }) %>
       <% if (i.quantity > 1) { %><span class="badge badge-outline">Lot × <%= it.h.num(i.quantity) %></span><% } %>
       <span class="muted small mono">#<%= i.id %></span>
+      <span class="muted small"><%= i.label_printed_at ? 'Étiquette imprimée le ' + it.h.dateTime(i.label_printed_at) : 'Étiquette jamais imprimée' %></span>
     </div>
   </div>
   <div class="actions">
@@ -44,9 +45,42 @@
           <% } %>
         </div>
         <% } %>
-        <% if (it.missing.length) { %><p class="muted small">Non renseignées : <%= it.missing.map(d => d.name).join(', ') %>.</p><% } %>
       </div>
     </section>
+
+    <% const cp = it.completeness; if (cp.missing.length || cp.notApplicable.length) { %>
+    <section class="card" id="completude">
+      <div class="card-head"><h2>Complétude</h2><span class="muted small">« Sans objet » : l’information n’existe pas pour cet objet</span></div>
+      <div class="card-body stack">
+        <% if (cp.missing.length) { %>
+        <div>
+          <div class="label">À compléter</div>
+          <div class="na-list mt">
+            <% for (const m of cp.missing) { %>
+            <form method="post" action="/objets/<%= i.id %>/sans-objet" class="na-chip missing">
+              <input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="field" value="<%= m.field %>">
+              <span><%= m.label %></span><button type="submit" title="Ne plus compter comme manquant">Sans objet</button>
+            </form>
+            <% } %>
+          </div>
+        </div>
+        <% } %>
+        <% if (cp.notApplicable.length) { %>
+        <div>
+          <div class="label">Sans objet</div>
+          <div class="na-list mt">
+            <% for (const m of cp.notApplicable) { %>
+            <form method="post" action="/objets/<%= i.id %>/sans-objet" class="na-chip">
+              <input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="field" value="<%= m.field %>"><input type="hidden" name="action" value="retirer">
+              <span><%= m.label %></span><button type="submit" title="Compter de nouveau comme attendu">Rétablir</button>
+            </form>
+            <% } %>
+          </div>
+        </div>
+        <% } %>
+      </div>
+    </section>
+    <% } %>
 
     <% if (i.notes) { %>
     <section class="card">
