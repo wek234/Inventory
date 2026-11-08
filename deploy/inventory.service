@@ -15,6 +15,11 @@ ExecStart=/usr/bin/node /opt/inventory/dist/server.js
 Restart=on-failure
 RestartSec=3
 UMask=0027
+# Mémoire plafonnée : un import ou une image anormale ne peut pas faire tomber le conteneur (ni MariaDB).
+Environment=NODE_OPTIONS=--max-old-space-size=320
+MemoryHigh=384M
+MemoryMax=512M
+OOMPolicy=stop
 
 # Durcissement
 NoNewPrivileges=yes

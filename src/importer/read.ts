@@ -50,6 +50,43 @@ export async function readWorkbook(buf: Buffer, filename: string): Promise<RawSh
   }));
 }
 
+// Lit le répertoire central d'une archive ZIP (.xlsx) sans rien décompresser.
+// Refuse les archives dont la taille décompressée totale ou le taux de compression sont anormaux.
+const MAX_UNCOMPRESSED = 100 * 1024 * 1024;
+const MAX_ENTRIES = 5000;
+const MAX_RATIO = 500;
+export function zipInfo(buf: Buffer): { ok: true; total: number } | { ok: false; error: string } {
+  const bad = (error: string) => ({ ok: false as const, error });
+  // Fin du répertoire central (EOCD) : signature 0x06054b50 dans les 64 derniers Ko.
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) return bad('Fichier .xlsx invalide (archive illisible).');
+  const entries = buf.readUInt16LE(eocd + 10);
+  const cdSize = buf.readUInt32LE(eocd + 12);
+  const cdOffset = buf.readUInt32LE(eocd + 16);
+  if (entries === 0xffff || cdOffset === 0xffffffff) return bad('Archive ZIP64 non prise en charge.');
+  if (entries > MAX_ENTRIES) return bad('Fichier .xlsx refusé : trop de fichiers internes.');
+  if (cdOffset + cdSize > buf.length) return bad('Fichier .xlsx invalide (répertoire central hors limites).');
+  let p = cdOffset;
+  let total = 0;
+  for (let n = 0; n < entries; n++) {
+    if (p + 46 > buf.length || buf.readUInt32LE(p) !== 0x02014b50) return bad('Fichier .xlsx invalide (répertoire central corrompu).');
+    const compressed = buf.readUInt32LE(p + 20);
+    const size = buf.readUInt32LE(p + 24);
+    if (size === 0xffffffff || compressed === 0xffffffff) return bad('Archive ZIP64 non prise en charge.');
+    if (compressed > 0 && size / compressed > MAX_RATIO && size > 1024 * 1024) return bad('Fichier .xlsx refusé : taux de compression anormal (bombe de décompression ?).');
+    total += size;
+    if (total > MAX_UNCOMPRESSED) return bad('Fichier .xlsx refusé : plus de 100 Mo une fois décompressé.');
+    p += 46 + buf.readUInt16LE(p + 28) + buf.readUInt16LE(p + 30) + buf.readUInt16LE(p + 32);
+  }
+  return { ok: true, total };
+}
+
 const AUTO_HEADER = /^(colonne|column)\s*\d+$/i;
 const colLetter = (i: number) => {
   let s = '';

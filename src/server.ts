@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
@@ -11,6 +11,8 @@ import { db } from './db.js';
 import { authPlugin } from './auth.js';
 import { render } from './views.js';
 import { registerRoutes } from './routes/index.js';
+import { startVersionWatcher } from './routes/admin.js';
+import { purgeOldTrash } from './routes/features.js';
 import { sql } from 'kysely';
 
 mkdirSync(config.dataDir, { recursive: true });
@@ -43,14 +45,20 @@ await app.register(helmet, {
       frameAncestors: ["'none'"],
       objectSrc: ["'none'"],
       baseUri: ["'none'"],
+      manifestSrc: ["'self'"],
+      workerSrc: ["'self'"],
+      mediaSrc: ["'self'", 'blob:'],
     },
   },
   crossOriginEmbedderPolicy: false,
   referrerPolicy: { policy: 'same-origin' },
   strictTransportSecurity: config.cookieSecure ? { maxAge: 31536000, includeSubDomains: false } : false,
 });
-app.addHook('onSend', async (_req, reply) => {
-  reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+app.addHook('onSend', async (req, reply) => {
+  // Fichiers statiques non versionnés (manifeste, icônes, page hors ligne) : cache court ; versionnés (?v=) : cache long immuable.
+  if (req.url.startsWith('/static/') && !req.url.includes('?v=')) reply.header('Cache-Control', 'public, max-age=3600');
+  // Caméra autorisée pour ce site uniquement (scanner du mode rangement), le reste est bloqué.
+  reply.header('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=()');
   if (!reply.hasHeader('Cache-Control')) reply.header('Cache-Control', 'no-store');
 });
 
@@ -67,6 +75,13 @@ await app.register(fastifyStatic, {
   cacheControl: true,
 });
 
+// PWA : manifeste et service worker servis à la racine (portée « / »).
+app.get('/manifest.webmanifest', async (_req, reply) =>
+  reply.type('application/manifest+json').header('Cache-Control', 'public, max-age=86400').send(readFileSync(path.join(config.appRoot, 'public', 'manifest.webmanifest'))),
+);
+app.get('/sw.js', async (_req, reply) =>
+  reply.type('text/javascript; charset=utf-8').header('Cache-Control', 'no-cache').send(readFileSync(path.join(config.appRoot, 'public', 'sw.js'))),
+);
 app.get('/favicon.ico', async (_req, reply) => reply.code(204).header('Cache-Control', 'public, max-age=86400').send());
 app.get('/health', async (_req, reply) => {
   await sql`SELECT 1`.execute(db);
@@ -91,6 +106,7 @@ setInterval(async () => {
   try {
     await db.deleteFrom('sessions').where('expires_at', '<', new Date()).execute();
     await db.deleteFrom('import_batches').where('created_at', '<', new Date(Date.now() - 24 * 3600_000)).execute();
+    await purgeOldTrash();
   } catch (e) {
     app.log.warn(e);
   }
@@ -105,3 +121,4 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 await app.listen({ host: config.listenHost, port: config.listenPort });
+startVersionWatcher(app.log);

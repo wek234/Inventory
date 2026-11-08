@@ -9,6 +9,7 @@ export const ATTR_TYPES: { value: AttrType; label: string }[] = [
   { value: 'date', label: 'Date' },
   { value: 'boolean', label: 'Oui / non' },
   { value: 'select', label: 'Liste de choix' },
+  { value: 'url', label: 'Lien (adresse web)' },
 ];
 export const isAttrType = (t: unknown): t is AttrType => ATTR_TYPES.some((x) => x.value === t);
 
@@ -78,6 +79,18 @@ export function parseValue(type: AttrType, raw: string, options: string[] = []):
         return { ok: false, error: `« ${s} » n'est pas une date valide (JJ/MM/AAAA)` };
       }
       return { ok: true, v: { ...empty, value_date: iso } };
+    }
+    case 'url': {
+      if (s.length > 2000) return { ok: false, error: 'adresse trop longue' };
+      let u: URL;
+      try {
+        u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(s) ? s : `https://${s}`);
+      } catch {
+        return { ok: false, error: `« ${s} » n'est pas une adresse web valide` };
+      }
+      // Seules les adresses http(s) sont acceptées (pas de javascript:, data:, file:…).
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') return { ok: false, error: 'seules les adresses http(s) sont acceptées' };
+      return { ok: true, v: { ...empty, value_text: u.href } };
     }
     case 'boolean':
       if (s === '1' || s.toLowerCase() === 'oui') return { ok: true, v: { ...empty, value_bool: 1 } };

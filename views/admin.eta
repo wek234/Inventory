@@ -1,6 +1,6 @@
 <% layout('/layout') %>
 <% const a = it.app, s = it.system, st = it.storage, d = it.database, r = it.release; %>
-<div class="page-head"><h1>Administration</h1></div>
+<div class="page-head"><h1>Administration</h1><div class="actions"><a class="btn" href="/administration/comptes"><%~ it.h.icon('people') %>Gérer les comptes</a></div></div>
 <div class="stack">
   <section class="card" id="version">
     <div class="card-head">
@@ -76,6 +76,21 @@ bash deploy/install.sh</pre>
         <div class="k">Contenu</div><div class="v small"><%= it.h.plural(d.counts.items, 'objet', 'objets') %>, <%= it.h.plural(d.counts.item_values, 'valeur', 'valeurs') %>, <%= it.h.plural(d.counts.attachments, 'fichier', 'fichiers') %>, <%= it.h.plural(d.counts.locations, 'emplacement', 'emplacements') %>, <%= it.h.plural(d.counts.categories, 'catégorie', 'catégories') %>, <%= it.h.plural(d.counts.maintenance, 'intervention', 'interventions') %>, <%= it.h.plural(d.counts.item_links, 'lien', 'liens') %>, <%= it.h.plural(d.counts.audit_log, 'événement', 'événements') %> d’historique</div>
         <div class="k">Comptes</div><div class="v"><%= d.counts.users %></div>
       </div></div>
+    </section>
+
+    <section class="card" id="alertes">
+      <div class="card-head"><h2>Alertes Telegram</h2>
+        <% if (it.telegram) { %><form method="post" action="/administration/telegram/test" class="inline"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm" type="submit">Envoyer un message de test</button></form><% } %>
+      </div>
+      <div class="card-body stack">
+        <% if (it.telegram) { %>
+          <div class="update-box ok">Alertes actives.</div>
+          <p class="small muted">Envoyées : nouvelle version disponible (une fois par version), compte verrouillé, série d’échecs de connexion, changement de mot de passe, de TOTP ou de clé d’accès, création, suppression ou changement de rôle d’un compte, création d’un jeton d’API.</p>
+        <% } else { %>
+          <div class="update-box unknown">Non configurées.</div>
+          <p class="small muted">Créez un bot avec <strong>@BotFather</strong> sur Telegram, envoyez-lui un message, puis renseignez <code>TELEGRAM_BOT_TOKEN</code> et <code>TELEGRAM_CHAT_ID</code> dans <code>/etc/inventory/inventory.env</code> et redémarrez (<code>systemctl restart inventory</code>). Le README explique comment trouver l’identifiant de conversation.</p>
+        <% } %>
+      </div>
     </section>
 
     <section class="card">

@@ -2,7 +2,7 @@
 <div class="page-head">
   <h1>Objets</h1>
   <div class="actions">
-    <a class="btn btn-primary" href="/objets/nouveau">Nouvel objet</a>
+    <% if (it.canEdit) { %><a class="btn btn-primary" href="/objets/nouveau"><%~ it.h.icon('plus') %>Nouvel objet</a><% } %>
   </div>
 </div>
 
@@ -62,6 +62,13 @@
     <label class="check"><input type="checkbox" name="lot" value="1" <%= it.f.lot ? 'checked' : '' %>> Lots uniquement</label>
     <label class="check"><input type="checkbox" name="etiquette" value="jamais" <%= it.f.etiquette ? 'checked' : '' %>> Étiquette jamais imprimée</label>
     <label for="f-manque" class="sr-only">Complétude</label>
+    <label for="f-personne" class="sr-only">Attribution</label>
+    <select id="f-personne" name="personne" class="w-auto">
+      <option value="">Toutes les attributions</option>
+      <option value="any" <%= it.f.personne === 'any' ? 'selected' : '' %>>Attribués à quelqu’un</option>
+      <option value="none" <%= it.f.personne === 'none' ? 'selected' : '' %>>Non attribués</option>
+      <% for (const p of it.people) { %><option value="<%= p.id %>" <%= it.f.personne === p.id ? 'selected' : '' %>>Attribués à <%= p.name %></option><% } %>
+    </select>
     <select id="f-manque" name="manque" class="w-auto">
       <option value="">Toutes les fiches</option>
       <% for (const [k, v] of Object.entries(it.manques)) { %><option value="<%= k %>" <%= it.f.manque === k ? 'selected' : '' %>><%= v %></option><% } %>

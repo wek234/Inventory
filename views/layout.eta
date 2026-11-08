@@ -8,15 +8,23 @@
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0}'>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="<%= it.h.asset('icon.svg') %>" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="<%= it.h.asset('icons/apple-touch-icon.png') %>">
+<meta name="theme-color" content="#2d5bd2">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="<%= it.h.asset('app.css') %>">
 <script src="<%= it.h.asset('vendor/htmx.min.js') %>" defer></script>
 <script src="<%= it.h.asset('app.js') %>" defer></script>
-</head>
-<body>
+<% for (const st of (it.styles || [])) { %><link rel="stylesheet" href="<%= st %>">
+<% } %><% for (const sc of (it.scripts || [])) { %><script src="<%= it.h.asset(sc) %>" defer></script>
+<% } %></head>
+<body data-app>
 <%
   const nav = [
     ['/', 'Tableau de bord', 'dashboard'], ['/objets', 'Objets', 'items'], ['/emplacements', 'Emplacements', 'locations'], ['/categories', 'Catégories', 'categories'], ['/statuts', 'Statuts', 'statuses'],
-    null, ['/import', 'Import', 'import'], ['/export', 'Export', 'export'], ['/historique', 'Historique', 'history'], ['/administration', 'Administration', 'admin']
+    ['/personnes', 'Personnes', 'people'],
+    null, ...(it.canEdit ? [['/rangement', 'Rangement', 'scan'], ['/import', 'Import', 'import'], ['/export', 'Export', 'export']] : []), ['/historique', 'Historique', 'history'],
+    ...(it.canEdit ? [['/corbeille', 'Corbeille', 'trash'], ['/administration', 'Administration', 'admin']] : [])
   ];
   const active = (href) => href === '/' ? it.path === '/' : (it.path === href || it.path.startsWith(href + '/'));
   const themeLabel = { auto: 'Thème : automatique', light: 'Thème : clair', dark: 'Thème : sombre' }[it.theme];
@@ -36,7 +44,8 @@
     <% } %>
     </div>
     <div class="sidebar-foot">
-      <div class="nav"><a href="/compte" class="<%= active('/compte') ? 'active' : '' %>"><%~ it.h.icon('account') %><span>Mon compte <span class="muted small">(<%= it.user ? it.user.username : '' %>)</span></span></a></div>
+      <button class="nav-btn" type="button" data-action="quick-search" title="Recherche rapide (Ctrl+K)"><%~ it.h.icon('search') %><span>Rechercher <kbd>Ctrl K</kbd></span></button>
+      <div class="nav"><a href="/compte" class="<%= active('/compte') ? 'active' : '' %>"><%~ it.h.icon('account') %><span>Mon compte <span class="muted small">(<%= it.user ? it.user.username : '' %><%= it.user && it.user.role === 'lecture' ? ', lecture seule' : '' %>)</span></span></a></div>
       <button class="nav-btn" type="button" data-action="theme"><%~ it.h.icon('theme') %><span data-theme-label><%= themeLabel %></span></button>
       <form method="post" action="/logout" class="inline">
         <input type="hidden" name="_csrf" value="<%= it.csrf %>">

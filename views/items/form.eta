@@ -6,6 +6,7 @@
     <h1><%= it.itemId ? 'Modifier l’objet' : 'Nouvel objet' %></h1>
   </div>
 </div>
+<% if (it.duplicateOf) { %><div class="flash info">Copie de <a href="/objets/<%= it.duplicateOf.id %>"><%= it.duplicateOf.name %></a> : vérifiez les informations, rien n’est enregistré avant « Créer l’objet ». Le n° de série, les photos et les documents ne sont pas copiés.</div><% } %>
 <% if (Object.keys(it.errors).length) { %><div class="flash erreur" role="alert">Le formulaire contient des erreurs : vérifiez les champs signalés.</div><% } %>
 <form method="post" action="<%= it.itemId ? '/objets/' + it.itemId : '/objets' %>" class="stack" novalidate>
   <input type="hidden" name="_csrf" value="<%= it.csrf %>">

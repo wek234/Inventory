@@ -192,9 +192,66 @@ const m002: Migration = {
   },
 };
 
+// 1.4.0 : rôles, passkeys, personnes et attributions, corbeille, photo principale, type « lien », jetons d'API, métadonnées.
+const m003: Migration = {
+  async up(db: Kysely<any>) {
+    const stmts = [
+      sql`ALTER TABLE users ADD COLUMN role ENUM('admin','lecture') NOT NULL DEFAULT 'admin'`,
+      sql`CREATE TABLE webauthn_credentials (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        credential_id VARCHAR(512) NOT NULL UNIQUE,
+        public_key TEXT NOT NULL,
+        counter BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        transports VARCHAR(255) NULL,
+        name VARCHAR(100) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME NULL,
+        CONSTRAINT fk_webauthn_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+      sql`CREATE TABLE people (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(120) NOT NULL UNIQUE,
+        notes TEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+      sql`ALTER TABLE items
+        ADD COLUMN assigned_person_id INT UNSIGNED NULL,
+        ADD COLUMN assigned_at DATE NULL,
+        ADD COLUMN deleted_at DATETIME NULL,
+        ADD KEY idx_items_deleted (deleted_at),
+        ADD CONSTRAINT fk_items_person FOREIGN KEY (assigned_person_id) REFERENCES people(id) ON DELETE SET NULL`,
+      sql`ALTER TABLE attachments ADD COLUMN is_primary TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN thumb_name VARCHAR(80) NULL`,
+      sql`ALTER TABLE attribute_defs MODIFY type ENUM('text','number','date','boolean','select','url') NOT NULL`,
+      sql`ALTER TABLE item_values MODIFY type ENUM('text','number','date','boolean','select','url') NOT NULL`,
+      sql`CREATE TABLE api_tokens (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        prefix VARCHAR(16) NOT NULL,
+        token_hash CHAR(64) NOT NULL UNIQUE,
+        scope ENUM('lecture','ecriture') NOT NULL DEFAULT 'lecture',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME NULL,
+        expires_at DATETIME NULL,
+        CONSTRAINT fk_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+      sql`CREATE TABLE app_meta (
+        k VARCHAR(64) NOT NULL PRIMARY KEY,
+        v TEXT NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    ];
+    for (const s of stmts) await s.execute(db);
+  },
+  async down() {
+    throw new Error('Pas de retour arrière automatique');
+  },
+};
+
 class Provider implements MigrationProvider {
   async getMigrations() {
-    return { '001_init': m001, '002_dashboard': m002 };
+    return { '001_init': m001, '002_dashboard': m002, '003_v14': m003 };
   }
 }
 

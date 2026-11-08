@@ -2,7 +2,7 @@ import { Kysely, MysqlDialect, Generated, Selectable } from 'kysely';
 import { createPool } from 'mysql2';
 import { config } from './config.js';
 
-export type AttrType = 'text' | 'number' | 'date' | 'boolean' | 'select';
+export type AttrType = 'text' | 'number' | 'date' | 'boolean' | 'select' | 'url';
 
 export interface UsersTable {
   id: Generated<number>;
@@ -15,6 +15,7 @@ export interface UsersTable {
   failed_attempts: number;
   locked_until: Date | null;
   password_changed_at: Date;
+  role: Generated<'admin' | 'lecture'>;
   created_at: Generated<Date>;
 }
 export interface SessionsTable {
@@ -66,6 +67,9 @@ export interface ItemsTable {
   location_id: number | null;
   notes: string | null;
   label_printed_at: Date | null;
+  assigned_person_id: number | null;
+  assigned_at: string | null;
+  deleted_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -111,6 +115,8 @@ export interface AttachmentsTable {
   mime: string;
   size: number;
   sha256: string;
+  is_primary: Generated<number>;
+  thumb_name: string | null;
   created_at: Generated<Date>;
 }
 export interface AuditLogTable {
@@ -131,6 +137,40 @@ export interface ImportBatchesTable {
   created_at: Date;
 }
 
+export interface WebauthnTable {
+  id: Generated<number>;
+  user_id: number;
+  credential_id: string;
+  public_key: string;
+  counter: number;
+  transports: string | null;
+  name: string;
+  created_at: Generated<Date>;
+  last_used_at: Date | null;
+}
+export interface PeopleTable {
+  id: Generated<number>;
+  name: string;
+  notes: string | null;
+  created_at: Generated<Date>;
+}
+export interface ApiTokensTable {
+  id: Generated<number>;
+  user_id: number;
+  name: string;
+  prefix: string;
+  token_hash: string;
+  scope: 'lecture' | 'ecriture';
+  created_at: Generated<Date>;
+  last_used_at: Date | null;
+  expires_at: Date | null;
+}
+export interface AppMetaTable {
+  k: string;
+  v: string | null;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   users: UsersTable;
   sessions: SessionsTable;
@@ -146,6 +186,10 @@ export interface Database {
   audit_log: AuditLogTable;
   import_batches: ImportBatchesTable;
   item_na: ItemNaTable;
+  webauthn_credentials: WebauthnTable;
+  people: PeopleTable;
+  api_tokens: ApiTokensTable;
+  app_meta: AppMetaTable;
 }
 
 export type User = Selectable<UsersTable>;

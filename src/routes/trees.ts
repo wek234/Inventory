@@ -28,6 +28,7 @@ async function counts(kind: Kind, tree: Tree) {
     .selectFrom('items')
     .select([kind.itemColumn, db.fn.countAll<number>().as('n')])
     .where(kind.itemColumn, 'is not', null)
+    .where('deleted_at', 'is', null)
     .groupBy(kind.itemColumn)
     .execute();
   const direct = new Map<number, number>(rows.map((r: any) => [Number(r[kind.itemColumn]), Number(r.n)]));
@@ -134,7 +135,7 @@ export async function treeRoutes(app: FastifyInstance) {
       if (!node) return reply.callNotFound();
       const used = await db.selectFrom('items').select(db.fn.countAll<number>().as('n')).where(kind.itemColumn, '=', node.id).executeTakeFirstOrThrow();
       if (node.children.length || Number(used.n) > 0) {
-        setFlash(reply, 'erreur', 'Suppression impossible : cet élément contient des sous-éléments ou des objets. Déplacez-les d’abord.');
+        setFlash(reply, 'erreur', 'Suppression impossible : cet élément contient des sous-éléments ou des objets (y compris dans la corbeille). Déplacez-les ou videz la corbeille d’abord.');
         return redirect(req, reply, `${kind.base}/${node.id}`);
       }
       await db.deleteFrom(kind.table).where('id', '=', node.id).execute();

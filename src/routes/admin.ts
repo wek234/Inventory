@@ -8,6 +8,7 @@ import { db } from '../db.js';
 import { config } from '../config.js';
 import { render, redirect, setFlash } from '../views.js';
 import { audit } from '../services/audit.js';
+import { notify, telegramEnabled, getMeta, setMeta } from '../services/notify.js';
 
 const pkg = JSON.parse(await fs.readFile(path.join(config.appRoot, 'package.json'), 'utf8')) as { version: string };
 export const APP_VERSION = pkg.version;
@@ -191,9 +192,16 @@ export async function adminRoutes(app: FastifyInstance) {
       database: { version: mariadbVersion, migrations, counts },
       activity: { sessions, failures, lastImport },
       release,
+      telegram: telegramEnabled(),
       newer: release?.ok && release.version ? compareVersions(release.version, APP_VERSION) > 0 : false,
       fmt: { bytes },
     });
+  });
+
+  app.post('/administration/telegram/test', async (req, reply) => {
+    const r = await notify('Message de test', [`Envoyé depuis la page Administration par ${req.user!.username}.`]);
+    setFlash(reply, r.ok ? 'ok' : 'erreur', r.ok ? 'Message de test envoyé sur Telegram.' : `Échec de l’envoi : ${r.error}.`);
+    return redirect(req, reply, '/administration#alertes');
   });
 
   app.post('/administration/verifier', async (req, reply) => {
@@ -204,4 +212,21 @@ export async function adminRoutes(app: FastifyInstance) {
     else setFlash(reply, 'ok', compareVersions(r.version!, APP_VERSION) > 0 ? `Nouvelle version disponible : ${r.version}.` : 'Vous utilisez la dernière version.');
     return redirect(req, reply, '/administration#version');
   });
+}
+
+// Vérification périodique des nouvelles versions : alerte Telegram une seule fois par version.
+export function startVersionWatcher(log: { warn: (o: unknown, m?: string) => void }) {
+  const run = async () => {
+    try {
+      const r = await latestRelease(true);
+      if (!r?.ok || !r.version || compareVersions(r.version, APP_VERSION) <= 0) return;
+      if ((await getMeta('notified_version')) === r.version) return;
+      const sent = await notify(`Nouvelle version disponible : ${r.version}`, [`Version installée : ${APP_VERSION}`, r.url ?? '']);
+      if (sent.ok) await setMeta('notified_version', r.version);
+    } catch (e) {
+      log.warn(e, 'vérification de version');
+    }
+  };
+  setTimeout(run, 60_000).unref();
+  setInterval(run, CACHE_MS).unref();
 }

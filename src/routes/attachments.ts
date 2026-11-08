@@ -9,6 +9,8 @@ import { randomToken, sha256 } from '../security.js';
 import { audit } from '../services/audit.js';
 import { setFlash, redirect } from '../views.js';
 import { id, Body } from '../services/forms.js';
+import { processImage } from '../services/images.js';
+import { checkMultipartCsrf } from '../auth.js';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
 const ALLOWED: Record<string, string[]> = {
@@ -42,15 +44,24 @@ function cleanName(name: string) {
 export async function attachmentRoutes(app: FastifyInstance) {
   app.post('/objets/:id/fichiers', async (req, reply) => {
     const itemId = id((req.params as Body).id);
-    const item = itemId ? await db.selectFrom('items').select(['id', 'name']).where('id', '=', itemId).executeTakeFirst() : undefined;
+    const item = itemId ? await db.selectFrom('items').select(['id', 'name']).where('id', '=', itemId).where('deleted_at', 'is', null).executeTakeFirst() : undefined;
     if (!item) return reply.callNotFound();
     if (!req.isMultipart()) return reply.code(400).send('Formulaire invalide');
 
     let kind = 'photo';
     const saved: string[] = [];
     const errors: string[] = [];
+    let csrfOk = false;
     try {
       for await (const part of req.parts()) {
+        // Le jeton CSRF doit arriver en premier : aucun fichier n'est lu avant qu'il soit vérifié.
+        if (!csrfOk) {
+          if (part.type === 'field' && part.fieldname === '_csrf' && checkMultipartCsrf(req, part.value)) {
+            csrfOk = true;
+            continue;
+          }
+          return reply.code(403).type('text/plain; charset=utf-8').send('Jeton de sécurité invalide ou expiré. Rechargez la page et recommencez.');
+        }
         if (part.type === 'field') {
           if (part.fieldname === 'kind' && typeof part.value === 'string' && part.value in ALLOWED) kind = part.value;
           continue;
@@ -67,13 +78,41 @@ export async function attachmentRoutes(app: FastifyInstance) {
           errors.push(`« ${original} » : type non accepté pour une ${KIND_LABEL[kind]} (${kind === 'photo' ? 'images JPEG, PNG, WebP, GIF, AVIF' : 'images ou PDF'})`);
           continue;
         }
+        // Images : orientation corrigée, métadonnées (EXIF, GPS) supprimées, vignette générée.
+        let data = buf;
+        let thumbName: string | null = null;
+        if (ft.mime.startsWith('image/')) {
+          try {
+            const img = await processImage(buf, ft.mime);
+            data = img.buf;
+            thumbName = `${randomToken(24)}.webp`;
+            const thumbDest = storedPath(thumbName);
+            await fs.mkdir(path.dirname(thumbDest), { recursive: true, mode: 0o750 });
+            await fs.writeFile(thumbDest, img.thumb, { mode: 0o640, flag: 'wx' });
+          } catch (e) {
+            req.log.warn({ err: e }, 'image illisible');
+            errors.push(`« ${original} » : image illisible ou trop grande.`);
+            continue;
+          }
+        }
         const stored = `${randomToken(24)}.${ft.ext}`;
         const dest = storedPath(stored);
         await fs.mkdir(path.dirname(dest), { recursive: true, mode: 0o750 });
-        await fs.writeFile(dest, buf, { mode: 0o640, flag: 'wx' });
+        await fs.writeFile(dest, data, { mode: 0o640, flag: 'wx' });
+        const hasPrimary = kind === 'photo' && (await db.selectFrom('attachments').select('id').where('item_id', '=', item.id).where('kind', '=', 'photo').where('is_primary', '=', 1).executeTakeFirst());
         await db
           .insertInto('attachments')
-          .values({ item_id: item.id, kind: kind as 'photo', original_name: original, stored_name: stored, mime: ft.mime, size: buf.length, sha256: sha256(buf) })
+          .values({
+            item_id: item.id,
+            kind: kind as 'photo',
+            original_name: original,
+            stored_name: stored,
+            thumb_name: thumbName,
+            mime: ft.mime,
+            size: data.length,
+            sha256: sha256(data),
+            is_primary: kind === 'photo' && !hasPrimary ? 1 : 0,
+          })
           .execute();
         saved.push(original);
       }
@@ -106,12 +145,41 @@ export async function attachmentRoutes(app: FastifyInstance) {
     return reply.send(createReadStream(storedPath(a.stored_name)));
   });
 
+  app.get('/fichiers/:id/vignette', async (req, reply) => {
+    const fid = id((req.params as Body).id);
+    const a = fid ? await db.selectFrom('attachments').select(['thumb_name']).where('id', '=', fid).executeTakeFirst() : undefined;
+    if (!a?.thumb_name) return reply.callNotFound();
+    return reply
+      .header('Content-Type', 'image/webp')
+      .header('Cache-Control', 'private, max-age=86400')
+      .header('X-Content-Type-Options', 'nosniff')
+      .send(createReadStream(storedPath(a.thumb_name)));
+  });
+
+  // Photo principale (vignette de la liste et de la fiche).
+  app.post('/fichiers/:id/principale', async (req, reply) => {
+    const fid = id((req.params as Body).id);
+    const a = fid ? await db.selectFrom('attachments').selectAll().where('id', '=', fid).where('kind', '=', 'photo').executeTakeFirst() : undefined;
+    if (!a) return reply.callNotFound();
+    await db.transaction().execute(async (trx) => {
+      await trx.updateTable('attachments').set({ is_primary: 0 }).where('item_id', '=', a.item_id).where('kind', '=', 'photo').execute();
+      await trx.updateTable('attachments').set({ is_primary: 1 }).where('id', '=', a.id).execute();
+    });
+    await audit(req, 'objet', a.item_id, 'fichier', `Photo principale : « ${a.original_name} »`);
+    return redirect(req, reply, `/objets/${a.item_id}#photos`);
+  });
+
   app.post('/fichiers/:id/supprimer', async (req, reply) => {
     const fid = id((req.params as Body).id);
     const a = fid ? await db.selectFrom('attachments').selectAll().where('id', '=', fid).executeTakeFirst() : undefined;
     if (!a) return reply.callNotFound();
     await db.deleteFrom('attachments').where('id', '=', a.id).execute();
-    await removeStoredFiles([a.stored_name]);
+    await removeStoredFiles([a.stored_name, ...(a.thumb_name ? [a.thumb_name] : [])]);
+    // Si c'était la photo principale, la plus récente restante la remplace.
+    if (a.is_primary) {
+      const next = await db.selectFrom('attachments').select('id').where('item_id', '=', a.item_id).where('kind', '=', 'photo').orderBy('created_at', 'desc').executeTakeFirst();
+      if (next) await db.updateTable('attachments').set({ is_primary: 1 }).where('id', '=', next.id).execute();
+    }
     await audit(req, 'objet', a.item_id, 'fichier', `Suppression du fichier « ${a.original_name} »`);
     setFlash(reply, 'ok', 'Fichier supprimé.');
     return redirect(req, reply, `/objets/${a.item_id}#${a.kind === 'photo' ? 'photos' : 'documents'}`);

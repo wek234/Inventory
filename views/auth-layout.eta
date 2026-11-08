@@ -5,9 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><%= it.title || 'Connexion' %> · Inventaire</title>
 <meta name="robots" content="noindex, nofollow">
+<meta name="csrf-token" content="<%= it.csrf %>">
 <link rel="icon" href="<%= it.h.asset('icon.svg') %>" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="<%= it.h.asset('icons/apple-touch-icon.png') %>">
+<meta name="theme-color" content="#2d5bd2">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="<%= it.h.asset('app.css') %>">
-</head>
+<script src="<%= it.h.asset('app.js') %>" defer></script>
+<% for (const sc of (it.scripts || [])) { %><script src="<%= it.h.asset(sc) %>" defer></script>
+<% } %></head>
 <body>
 <div class="auth">
   <div class="card">

@@ -1,0 +1,45 @@
+<% layout('/layout') %>
+<div class="page-head">
+  <div>
+    <h1>Rangement</h1>
+    <p class="muted small">Scannez l’étiquette d’un emplacement, puis celles des objets à y ranger : chaque objet scanné est déplacé immédiatement.</p>
+  </div>
+</div>
+<div class="cols" data-scan>
+  <div class="stack">
+    <section class="card">
+      <div class="card-head"><h2>Caméra</h2><button class="btn btn-sm btn-primary" type="button" data-action="scan-start">Démarrer la caméra</button></div>
+      <div class="card-body stack">
+        <div class="scan-view" data-scan-view hidden>
+          <video data-scan-video playsinline muted></video>
+          <div class="scan-frame" aria-hidden="true"></div>
+        </div>
+        <p class="small muted" data-scan-hint>La caméra nécessite une connexion HTTPS et votre autorisation. Sur ordinateur, vous pouvez aussi saisir le code à la main.</p>
+        <form class="row" data-scan-manual>
+          <label class="sr-only" for="scan-code">Code</label>
+          <input id="scan-code" type="text" placeholder="Code de l’étiquette (ex. #42, E3) ou adresse de la fiche" autocomplete="off">
+          <button class="btn" type="submit">Valider</button>
+        </form>
+      </div>
+    </section>
+  </div>
+  <div class="stack">
+    <section class="card">
+      <div class="card-head"><h2>Emplacement cible</h2></div>
+      <div class="card-body stack">
+        <div class="scan-target" data-scan-target><span class="muted">Aucun : scannez un emplacement ou choisissez-le.</span></div>
+        <div class="field">
+          <label for="scan-loc">Choisir dans la liste</label>
+          <select id="scan-loc" data-scan-select>
+            <option value="">…</option>
+            <% for (const l of it.locs) { %><option value="<%= l.id %>" data-path="<%= l.path %>"><%= it.h.indent(l.depth) %><%= l.name %></option><% } %>
+          </select>
+        </div>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Objets rangés</h2><span class="muted small" data-scan-count>0</span></div>
+      <ul class="list" data-scan-log><li class="muted small">Rien pour l’instant.</li></ul>
+    </section>
+  </div>
+</div>

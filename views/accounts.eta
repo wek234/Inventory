@@ -1,0 +1,70 @@
+<% layout('/layout') %>
+<div class="page-head">
+  <div>
+    <a class="btn btn-back" href="/administration">Retour à l’administration</a>
+    <h1>Comptes</h1>
+  </div>
+</div>
+<div class="cols">
+  <section class="card">
+    <div class="card-head"><h2>Comptes existants</h2></div>
+    <div class="table-wrap">
+    <table class="table responsive">
+      <thead><tr><th>Identifiant</th><th>Rôle</th><th>Sécurité</th><th>Dernière connexion</th><th></th></tr></thead>
+      <tbody>
+      <% for (const u of it.users) { const self = it.user && u.id === it.user.id; %>
+        <tr>
+          <td><strong><%= u.username %></strong><% if (self) { %> <span class="badge badge-bleu">vous</span><% } %><% if (u.locked) { %> <span class="badge badge-rouge">verrouillé</span><% } %></td>
+          <td data-label="Rôle">
+            <form method="post" action="/administration/comptes/<%= u.id %>" class="row">
+              <input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="role">
+              <select name="role" class="w-auto" aria-label="Rôle de <%= u.username %>">
+                <option value="admin" <%= u.role === 'admin' ? 'selected' : '' %>>Administrateur</option>
+                <option value="lecture" <%= u.role === 'lecture' ? 'selected' : '' %>>Lecture seule</option>
+              </select>
+              <button class="btn btn-sm" type="submit">Appliquer</button>
+            </form>
+          </td>
+          <td data-label="Sécurité" class="small"><%= u.totp_enabled ? 'TOTP configuré' : 'TOTP à configurer' %><br><%= it.h.plural(u.passkeys, 'clé d’accès', 'clés d’accès') %></td>
+          <td data-label="Dernière connexion" class="small nowrap"><%= u.lastLogin ? it.h.dateTime(u.lastLogin) : 'jamais' %></td>
+          <td class="actions">
+            <details class="account-actions">
+              <summary class="btn btn-sm">Actions</summary>
+              <div class="stack mt">
+                <form method="post" action="/administration/comptes/<%= u.id %>" class="row">
+                  <input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="password">
+                  <input type="password" name="password" minlength="<%= it.minLength %>" placeholder="Nouveau mot de passe" autocomplete="new-password" required aria-label="Nouveau mot de passe">
+                  <button class="btn btn-sm" type="submit">Réinitialiser</button>
+                </form>
+                <% if (!self) { %>
+                <form method="post" action="/administration/comptes/<%= u.id %>" data-confirm="Réinitialiser le TOTP de « <%= u.username %> » ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="totp"><button class="btn btn-sm" type="submit">Réinitialiser le TOTP</button></form>
+                <% } %>
+                <% if (u.locked) { %>
+                <form method="post" action="/administration/comptes/<%= u.id %>"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="unlock"><button class="btn btn-sm" type="submit">Déverrouiller</button></form>
+                <% } %>
+                <% if (!self) { %>
+                <form method="post" action="/administration/comptes/<%= u.id %>" data-confirm="Supprimer définitivement le compte « <%= u.username %> » ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="delete"><button class="btn btn-sm btn-danger" type="submit">Supprimer le compte</button></form>
+                <% } %>
+              </div>
+            </details>
+          </td>
+        </tr>
+      <% } %>
+      </tbody>
+    </table>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Nouveau compte</h2></div>
+    <div class="card-body">
+      <form method="post" action="/administration/comptes" class="stack" autocomplete="off">
+        <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+        <div class="field"><label for="a-user">Identifiant</label><input id="a-user" name="username" type="text" maxlength="64" pattern="[A-Za-z0-9._\-]{3,64}" required></div>
+        <div class="field"><label for="a-role">Rôle</label>
+          <select id="a-role" name="role"><option value="lecture">Lecture seule (consultation)</option><option value="admin">Administrateur (tous les droits)</option></select></div>
+        <div class="field"><label for="a-pw">Mot de passe initial</label><input id="a-pw" name="password" type="password" minlength="<%= it.minLength %>" autocomplete="new-password" required><span class="hint"><%= it.minLength %> caractères minimum. À transmettre à la personne : la double authentification lui sera demandée à la première connexion.</span></div>
+        <div><button class="btn btn-primary" type="submit">Créer le compte</button></div>
+      </form>
+    </div>
+  </section>
+</div>

@@ -1,4 +1,4 @@
-<% layout('/layout') %>
+<% layout('/layout', { ...it, scripts: ['vendor/simplewebauthn.min.js'] }) %>
 <div class="page-head"><h1>Mon compte</h1></div>
 <div class="grid-2">
   <section class="card">
@@ -46,6 +46,59 @@
     </section>
     <% } %>
   </div>
+</div>
+
+<div class="grid-2 mt">
+  <section class="card" id="passkeys">
+    <div class="card-head"><h2>Clés d’accès (passkeys)</h2></div>
+    <% if (it.passkeys.length) { %>
+    <ul class="list">
+      <% for (const k of it.passkeys) { %>
+      <li><div><strong><%= k.name %></strong><div class="meta">Ajoutée le <%= it.h.dateTime(k.created_at) %><%= k.last_used_at ? ' · dernière utilisation ' + it.h.dateTime(k.last_used_at) : '' %></div></div>
+        <form method="post" action="/compte/passkeys/<%= k.id %>/supprimer" class="inline" data-confirm="Supprimer la clé « <%= k.name %> » ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm btn-danger" type="submit">Supprimer</button></form></li>
+      <% } %>
+    </ul>
+    <% } %>
+    <div class="card-body stack">
+      <p class="small muted">Connexion sans mot de passe ni code, avec l’empreinte, le visage ou le code PIN de votre appareil (téléphone, ordinateur, clé de sécurité). Plus sûre que le mot de passe : elle ne peut pas être hameçonnée.</p>
+      <div class="row">
+        <label class="sr-only" for="pk-name">Nom de la clé</label>
+        <input id="pk-name" type="text" maxlength="100" placeholder="Nom (ex. Téléphone, PC bureau)" data-passkey-name>
+        <button class="btn btn-primary" type="button" data-action="passkey-register"><%~ it.h.icon('key') %>Ajouter une clé d’accès</button>
+      </div>
+      <p class="err" data-passkey-error hidden></p>
+    </div>
+  </section>
+
+  <section class="card" id="jetons">
+    <div class="card-head"><h2>Jetons d’API</h2><a class="small" href="/api/v1" title="Documentation de l’API">Documentation</a></div>
+    <% if (it.tokens.length) { %>
+    <ul class="list">
+      <% for (const t of it.tokens) { %>
+      <li><div><strong><%= t.name %></strong> <span class="badge <%= t.scope === 'ecriture' ? 'badge-orange' : 'badge-gris' %>"><%= t.scope === 'ecriture' ? 'lecture + écriture' : 'lecture' %></span>
+        <div class="meta mono"><%= t.prefix %>…</div>
+        <div class="meta">Créé le <%= it.h.dateTime(t.created_at) %><%= t.last_used_at ? ' · utilisé le ' + it.h.dateTime(t.last_used_at) : ' · jamais utilisé' %><%= t.expires_at ? ' · expire le ' + it.h.dateTime(t.expires_at) : '' %></div></div>
+        <form method="post" action="/compte/jetons/<%= t.id %>/supprimer" class="inline" data-confirm="Révoquer le jeton « <%= t.name %> » ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm btn-danger" type="submit">Révoquer</button></form></li>
+      <% } %>
+    </ul>
+    <% } %>
+    <div class="card-body">
+      <form method="post" action="/compte/jetons" class="stack">
+        <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+        <div class="grid-2">
+          <div class="field"><label for="tk-name">Nom</label><input id="tk-name" name="name" type="text" maxlength="100" required placeholder="ex. Home Assistant"></div>
+          <div class="field"><label for="tk-days">Expiration</label>
+            <select id="tk-days" name="days"><option value="30">30 jours</option><option value="90">90 jours</option><option value="365" selected>1 an</option><option value="0">Jamais</option></select></div>
+        </div>
+        <% if (it.canEdit) { %>
+        <div class="field"><label for="tk-scope">Droits</label>
+          <select id="tk-scope" name="scope"><option value="lecture">Lecture seule</option><option value="ecriture">Lecture et écriture</option></select></div>
+        <% } %>
+        <div><button class="btn" type="submit">Créer un jeton</button></div>
+        <p class="small muted">Le jeton n’est affiché qu’une fois, à la création. Seule son empreinte est conservée.</p>
+      </form>
+    </div>
+  </section>
 </div>
 <section class="card mt">
   <div class="card-head"><h2>Sessions actives</h2></div>

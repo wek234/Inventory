@@ -9,9 +9,9 @@
     <% if (n.description) { %><p class="muted pre"><%= n.description %></p><% } %>
   </div>
   <div class="actions">
-    <% if (!isCat) { %><a class="btn" href="/emplacements/<%= n.id %>/etiquette">Étiquette QR</a><% } %>
+    <% if (!isCat && it.canEdit) { %><a class="btn" href="/emplacements/<%= n.id %>/etiquette">Étiquette QR</a><% } %>
     <a class="btn" href="/objets?<%= k.itemFilter %>=<%= n.id %>">Voir les objets (<%= it.total.get(n.id) || 0 %>)</a>
-    <a class="btn btn-primary" href="/objets/nouveau?<%= k.itemFilter %>=<%= n.id %>">Nouvel objet ici</a>
+    <% if (it.canEdit) { %><a class="btn btn-primary" href="/objets/nouveau?<%= k.itemFilter %>=<%= n.id %>">Nouvel objet ici</a><% } %>
   </div>
 </div>
 
@@ -26,7 +26,9 @@
         <p class="small muted"><% it.inheritedDefs.forEach((d, idx) => { %><%= idx ? ', ' : '' %><%= d.name %> <span class="muted">(<%= it.h.attrTypeLabel(d.type) %><%= d.unit ? ', ' + d.unit : '' %><%= d.optional ? ', facultative' : '' %>, de <%= d.ownerName %>)</span><% }) %></p>
       </div>
       <% } %>
-      <% if (it.ownDefs.length) { %>
+      <% if (it.ownDefs.length && !it.canEdit) { %>
+      <ul class="list"><% for (const d of it.ownDefs) { %><li><span><%= d.name %></span><span class="muted small"><%= it.h.attrTypeLabel(d.type) %><%= d.unit ? ', ' + d.unit : '' %><%= d.optional ? ', facultative' : '' %></span></li><% } %></ul>
+      <% } else if (it.ownDefs.length) { %>
       <div class="table-wrap">
       <table class="table">
         <thead><tr><th>Ordre</th><th>Nom</th><th>Type</th><th>Unité / options</th><th></th></tr></thead>
@@ -61,6 +63,7 @@
       </table>
       </div>
       <% } else { %><div class="card-body"><p class="muted">Aucune caractéristique propre à cette catégorie.</p></div><% } %>
+      <% if (it.canEdit) { %>
       <div class="card-body">
         <form method="post" action="/categories/<%= n.id %>/caracteristiques" class="stack">
           <input type="hidden" name="_csrf" value="<%= it.csrf %>">
@@ -76,6 +79,7 @@
           <div><button class="btn btn-sm" type="submit">Ajouter la caractéristique</button></div>
         </form>
       </div>
+      <% } %>
     </section>
     <% } %>
 
@@ -88,6 +92,7 @@
         <% } %>
       </ul>
       <% } %>
+      <% if (it.canEdit) { %>
       <div class="card-body">
         <form method="post" action="<%= k.base %>" class="row">
           <input type="hidden" name="_csrf" value="<%= it.csrf %>">
@@ -97,9 +102,11 @@
           <button class="btn btn-sm" type="submit">Ajouter</button>
         </form>
       </div>
+      <% } %>
     </section>
   </div>
 
+  <% if (it.canEdit) { %>
   <div class="stack">
     <section class="card">
       <div class="card-head"><h2>Modifier</h2></div>
@@ -130,4 +137,5 @@
       </div>
     </section>
   </div>
+<% } %>
 </div>

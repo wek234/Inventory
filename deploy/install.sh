@@ -69,8 +69,17 @@ CURRENT_NODE=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo
 if (( CURRENT_NODE < NODE_WANTED )); then
   say "Installation de Node.js ${NODE_WANTED} (dépôt NodeSource)"
   install -d -m 0755 /etc/apt/keyrings
-  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg
+  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg.tmp
+  # Empreinte officielle de la clé NodeSource : refus si la clé téléchargée ne correspond pas.
+  NODESOURCE_FPR=6F71F525282841EEDAF851B42F59B5F99B1BE0B4
+  GOT_FPR=$(gpg --show-keys --with-colons /etc/apt/keyrings/nodesource.gpg.tmp 2>/dev/null | awk -F: '/^fpr/ {print $10; exit}')
+  if [[ "$GOT_FPR" != "$NODESOURCE_FPR" ]]; then
+    rm -f /etc/apt/keyrings/nodesource.gpg.tmp
+    die "empreinte de la clé NodeSource inattendue (${GOT_FPR:-aucune}, attendu ${NODESOURCE_FPR}). Installation interrompue."
+  fi
+  mv /etc/apt/keyrings/nodesource.gpg.tmp /etc/apt/keyrings/nodesource.gpg
   chmod 0644 /etc/apt/keyrings/nodesource.gpg
+  echo "Clé NodeSource vérifiée (${GOT_FPR})."
   echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_WANTED}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
   # Le paquet nodejs vient toujours de NodeSource, jamais de Debian.
   cat > /etc/apt/preferences.d/nodesource <<PIN
@@ -149,6 +158,7 @@ DB_NAME=inventory
 DATA_DIR=${DATA_DIR}/uploads
 MAX_UPLOAD_MB=20
 SESSION_DAYS=7
+SESSION_MAX_DAYS=30
 LOGIN_MAX_ATTEMPTS=5
 LOGIN_LOCK_MINUTES=15
 PASSWORD_MIN_LENGTH=12
@@ -159,6 +169,9 @@ OIDC_CLIENT_ID=
 OIDC_CLIENT_SECRET=
 OIDC_LABEL=SSO
 OIDC_REQUIRE_LOCAL_TOTP=true
+# Alertes Telegram (vides = désactivées) : jeton du bot (@BotFather) et identifiant de la conversation.
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
 CONF
   chown root:inventory "$ENV_FILE"
   chmod 0640 "$ENV_FILE"
@@ -231,12 +244,27 @@ CRED
   fi
 fi
 
+# Mise à jour : ajoute au fichier de configuration les réglages apparus depuis (sans modifier les existants).
+ensure_env() {
+  local key=$1 value=$2 comment=$3
+  if ! grep -qE "^#?${key}=" "$ENV_FILE"; then
+    printf '\n# %s\n%s=%s\n' "$comment" "$key" "$value" >> "$ENV_FILE"
+    echo "Configuration : ${key} ajouté."
+  fi
+}
+if [[ $UPDATE -eq 1 ]]; then
+  ensure_env SESSION_MAX_DAYS 30 "Durée de vie maximale d'une session (jours), même utilisée chaque jour."
+  ensure_env TELEGRAM_BOT_TOKEN "" "Alertes Telegram (vides = désactivées) : jeton du bot (@BotFather)."
+  ensure_env TELEGRAM_CHAT_ID "" "Alertes Telegram : identifiant de la conversation."
+fi
+
 # Exécute une commande d'administration sous l'utilisateur de l'application, avec sa configuration.
 cli() { runuser -u inventory -- bash -c 'set -a; . /etc/inventory/inventory.env; set +a; exec node /opt/inventory/dist/cli.js "$@"' cli "$@"; }
 
 say "Schéma de la base"
 cli migrate
 cli seed
+cli photos
 
 say "Service systemd"
 install -m 0644 "$SRC_DIR/deploy/inventory.service" /etc/systemd/system/inventory.service

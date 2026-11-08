@@ -1,0 +1,27 @@
+<% layout('/layout') %>
+<div class="page-head"><h1>Personnes</h1></div>
+<div class="cols">
+  <section class="card">
+    <div class="card-head"><h2>Personnes</h2><span class="muted small">à qui des objets peuvent être attribués (sans compte)</span></div>
+    <% if (!it.people.length) { %><div class="empty">Aucune personne pour l’instant.</div><% } else { %>
+    <ul class="list">
+      <% for (const p of it.people) { %>
+      <li><div><a href="/personnes/<%= p.id %>"><strong><%= p.name %></strong></a><% if (p.notes) { %><div class="meta"><%= p.notes.slice(0, 120) %></div><% } %></div><a class="count-link" href="/objets?personne=<%= p.id %>"><%= it.h.plural(p.n, 'objet', 'objets') %></a></li>
+      <% } %>
+    </ul>
+    <% } %>
+  </section>
+  <% if (it.canEdit) { %>
+  <section class="card">
+    <div class="card-head"><h2>Ajouter une personne</h2></div>
+    <div class="card-body">
+      <form method="post" action="/personnes" class="stack">
+        <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+        <div class="field"><label for="p-name">Nom</label><input id="p-name" name="name" type="text" maxlength="120" required></div>
+        <div class="field"><label for="p-notes">Notes <span class="muted">(facultatif : contact, rôle…)</span></label><textarea id="p-notes" name="notes" rows="2"></textarea></div>
+        <div><button class="btn btn-primary" type="submit">Ajouter</button></div>
+      </form>
+    </div>
+  </section>
+  <% } %>
+</div>

@@ -85,9 +85,45 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
     await db.updateTable('users').set({ failed_attempts: 0, locked_until: null }).where('id', '=', u.id).execute();
     console.log('Compte déverrouillé.');
   },
+  // Photos envoyées avant la 1.4 : métadonnées (EXIF, GPS) supprimées, vignettes et photo principale créées.
+  async photos() {
+    const { processImage } = await import('./services/images.js');
+    const { promises: fs } = await import('node:fs');
+    const path = await import('node:path');
+    const { config } = await import('./config.js');
+    const { randomToken, sha256 } = await import('./security.js');
+    const rows = await db.selectFrom('attachments').selectAll().where('mime', 'like', 'image/%').where('thumb_name', 'is', null).execute();
+    let done = 0;
+    for (const a of rows) {
+      const file = path.join(config.dataDir, a.stored_name.slice(0, 2), a.stored_name);
+      try {
+        const img = await processImage(await fs.readFile(file), a.mime);
+        const thumb = `${randomToken(24)}.webp`;
+        const thumbFile = path.join(config.dataDir, thumb.slice(0, 2), thumb);
+        await fs.mkdir(path.dirname(thumbFile), { recursive: true, mode: 0o750 });
+        await fs.writeFile(thumbFile, img.thumb, { mode: 0o640 });
+        await fs.writeFile(file + '.tmp', img.buf, { mode: 0o640 });
+        await fs.rename(file + '.tmp', file);
+        await db.updateTable('attachments').set({ thumb_name: thumb, size: img.buf.length, sha256: sha256(img.buf) }).where('id', '=', a.id).execute();
+        done++;
+      } catch (e: any) {
+        console.log(`Photo ${a.id} (${a.original_name}) ignorée : ${e?.message ?? e}`);
+      }
+    }
+    // Une photo principale par objet (la plus récente) si aucune n'est définie.
+    const items = await db.selectFrom('attachments').select('item_id').distinct().where('kind', '=', 'photo').execute();
+    for (const { item_id } of items) {
+      const has = await db.selectFrom('attachments').select('id').where('item_id', '=', item_id).where('kind', '=', 'photo').where('is_primary', '=', 1).executeTakeFirst();
+      if (!has) {
+        const last = await db.selectFrom('attachments').select('id').where('item_id', '=', item_id).where('kind', '=', 'photo').orderBy('created_at', 'desc').executeTakeFirst();
+        if (last) await db.updateTable('attachments').set({ is_primary: 1 }).where('id', '=', last.id).execute();
+      }
+    }
+    console.log(`${done} image(s) traitée(s).`);
+  },
   async 'list-users'() {
-    const rows = await db.selectFrom('users').select(['username', 'totp_enabled', 'locked_until', 'created_at']).execute();
-    for (const r of rows) console.log(`${r.username}\tTOTP: ${r.totp_enabled ? 'oui' : 'non'}\t${r.locked_until && new Date(r.locked_until) > new Date() ? 'VERROUILLÉ' : ''}`);
+    const rows = await db.selectFrom('users').select(['username', 'role', 'totp_enabled', 'locked_until', 'created_at']).execute();
+    for (const r of rows) console.log(`${r.username}\t${r.role === 'admin' ? 'administrateur' : 'lecture seule'}\tTOTP: ${r.totp_enabled ? 'oui' : 'non'}\t${r.locked_until && new Date(r.locked_until) > new Date() ? 'VERROUILLÉ' : ''}`);
   },
 };
 

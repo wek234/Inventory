@@ -1,22 +1,36 @@
 <% layout('/layout') %>
-<% const i = it.item; %>
+<% const i = it.item; const edit = it.canEdit && !i.deleted_at; %>
 <div class="page-head">
-  <div>
-    <a class="btn btn-back" href="/objets">Retour à la liste</a>
-    <div class="crumbs"><a href="/objets">Objets</a><% for (const c of it.categoryLineage) { %> › <a href="/objets?cat=<%= c.id %>"><%= c.name %></a><% } %></div>
-    <h1><%= i.name %></h1>
-    <div class="row">
-      <%~ include('/_status', { name: i.status_name, color: i.status_color }) %>
-      <% if (i.quantity > 1) { %><span class="badge badge-outline">Lot × <%= it.h.num(i.quantity) %></span><% } %>
-      <span class="muted small mono">#<%= i.id %></span>
-      <span class="muted small"><%= i.label_printed_at ? 'Étiquette imprimée le ' + it.h.dateTime(i.label_printed_at) : 'Étiquette jamais imprimée' %></span>
+  <div class="item-head">
+    <% if (it.primary && it.primary.thumb_name) { %><a class="item-photo" href="/fichiers/<%= it.primary.id %>" target="_blank" rel="noopener"><img src="/fichiers/<%= it.primary.id %>/vignette" alt="" width="88" height="88"></a><% } %>
+    <div>
+      <a class="btn btn-back" href="/objets">Retour à la liste</a>
+      <div class="crumbs"><a href="/objets">Objets</a><% for (const c of it.categoryLineage) { %> › <a href="/objets?cat=<%= c.id %>"><%= c.name %></a><% } %></div>
+      <h1><%= i.name %></h1>
+      <div class="row">
+        <%~ include('/_status', { name: i.status_name, color: i.status_color }) %>
+        <% if (i.quantity > 1) { %><span class="badge badge-outline">Lot × <%= it.h.num(i.quantity) %></span><% } %>
+        <% if (it.assigned) { %><a class="badge badge-violet" href="/personnes/<%= it.assigned.id %>">Attribué à <%= it.assigned.name %></a><% } %>
+        <span class="muted small mono">#<%= i.id %></span>
+        <span class="muted small"><%= i.label_printed_at ? 'Étiquette imprimée le ' + it.h.dateTime(i.label_printed_at) : 'Étiquette jamais imprimée' %></span>
+      </div>
     </div>
   </div>
+  <% if (edit) { %>
   <div class="actions">
-    <a class="btn" href="/objets/<%= i.id %>/etiquette">Étiquette QR</a>
-    <a class="btn btn-primary" href="/objets/<%= i.id %>/modifier">Modifier</a>
+    <a class="btn" href="/objets/nouveau?depuis=<%= i.id %>"><%~ it.h.icon('copy') %>Dupliquer</a>
+    <a class="btn" href="/objets/<%= i.id %>/etiquette"><%~ it.h.icon('qr') %>Étiquette QR</a>
+    <a class="btn btn-primary" href="/objets/<%= i.id %>/modifier"><%~ it.h.icon('edit') %>Modifier</a>
   </div>
+  <% } %>
 </div>
+
+<% if (i.deleted_at) { %>
+<div class="flash erreur row-between">
+  <span>Cet objet est dans la corbeille depuis le <%= it.h.dateTime(i.deleted_at) %>. Il sera supprimé définitivement 30 jours après.</span>
+  <% if (it.canEdit) { %><form method="post" action="/objets/<%= i.id %>/restaurer" class="inline"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm" type="submit"><%~ it.h.icon('restore') %>Restaurer</button></form><% } %>
+</div>
+<% } %>
 
 <div class="cols">
   <div class="stack">
@@ -35,20 +49,20 @@
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>Caractéristiques</h2><a class="small" href="/objets/<%= i.id %>/modifier">Modifier</a></div>
+      <div class="card-head"><h2>Caractéristiques</h2><% if (edit) { %><a class="small" href="/objets/<%= i.id %>/modifier">Modifier</a><% } %></div>
       <div class="card-body">
         <% if (!it.values.length) { %><p class="muted">Aucune caractéristique renseignée.</p><% } else { %>
         <div class="kv">
           <% for (const v of it.values) { %>
           <div class="k"><%= v.name %><% if (v.def_id === null) { %> <span class="badge badge-outline" title="Caractéristique propre à cet objet">libre</span><% } %></div>
-          <div class="v"><%= it.h.value(v) %></div>
+          <div class="v"><% if (v.type === 'url' && v.value_text) { %><a href="<%= v.value_text %>" target="_blank" rel="noopener noreferrer nofollow" class="ext-link"><%= v.value_text.replace(/^https?:\/\//, '') %></a><% } else { %><%= it.h.value(v) %><% } %></div>
           <% } %>
         </div>
         <% } %>
       </div>
     </section>
 
-    <% const cp = it.completeness; if (cp.missing.length || cp.notApplicable.length) { %>
+    <% const cp = it.completeness; if (edit && (cp.missing.length || cp.notApplicable.length)) { %>
     <section class="card" id="completude">
       <div class="card-head"><h2>Complétude</h2><span class="muted small">« Sans objet » : l’information n’existe pas pour cet objet</span></div>
       <div class="card-body stack">
@@ -90,28 +104,34 @@
     <% } %>
 
     <section class="card" id="photos">
-      <div class="card-head"><h2>Photos</h2></div>
+      <div class="card-head"><h2>Photos</h2><span class="muted small">métadonnées (GPS, appareil) supprimées à l’envoi</span></div>
       <div class="card-body stack">
         <% if (it.photos.length) { %>
         <div class="photos">
-          <% for (const p of it.photos) { %>
-          <div class="photo">
-            <a href="/fichiers/<%= p.id %>" target="_blank" rel="noopener"><img src="/fichiers/<%= p.id %>" alt="<%= p.original_name %>" loading="lazy"></a>
-            <form method="post" action="/fichiers/<%= p.id %>/supprimer" data-confirm="Supprimer cette photo ?">
-              <input type="hidden" name="_csrf" value="<%= it.csrf %>">
-              <button class="btn btn-sm btn-danger" type="submit" aria-label="Supprimer la photo">Suppr.</button>
-            </form>
+          <% for (const p of it.photos) { const isPrimary = it.primary && it.primary.id === p.id; %>
+          <div class="photo<%= isPrimary ? ' primary' : '' %>">
+            <a href="/fichiers/<%= p.id %>" target="_blank" rel="noopener"><img src="/fichiers/<%= p.id %><%= p.thumb_name ? '/vignette' : '' %>" alt="<%= p.original_name %>" loading="lazy"></a>
+            <% if (isPrimary) { %><span class="photo-badge"><%~ it.h.icon('star') %>Principale</span><% } %>
+            <% if (edit) { %>
+            <div class="photo-actions">
+              <% if (!isPrimary) { %><form method="post" action="/fichiers/<%= p.id %>/principale"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm" type="submit" title="Définir comme photo principale"><%~ it.h.icon('star') %></button></form><% } %>
+              <form method="post" action="/fichiers/<%= p.id %>/supprimer" data-confirm="Supprimer cette photo ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm btn-danger" type="submit" aria-label="Supprimer la photo"><%~ it.h.icon('trash') %></button></form>
+            </div>
+            <% } %>
           </div>
           <% } %>
         </div>
-        <% } %>
-        <form method="post" action="/objets/<%= i.id %>/fichiers?_csrf=<%= encodeURIComponent(it.csrf) %>" enctype="multipart/form-data" class="row">
+        <% } else { %><p class="muted">Aucune photo.</p><% } %>
+        <% if (edit) { %>
+        <form method="post" action="/objets/<%= i.id %>/fichiers" enctype="multipart/form-data" class="row">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>">
           <input type="hidden" name="kind" value="photo">
           <label class="sr-only" for="photo-files">Photos</label>
           <input id="photo-files" type="file" name="files" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple required>
           <button class="btn btn-sm" type="submit">Ajouter</button>
           <span class="muted small">20 Mo max. par fichier</span>
         </form>
+        <% } %>
       </div>
     </section>
 
@@ -125,19 +145,23 @@
             <div class="meta"><%= d.kind === 'facture' ? 'Facture' : 'Document' %> · <%= it.h.num(Math.round(d.size / 1024)) %> Ko · <%= it.h.dateTime(d.created_at) %></div></div>
           <div class="row">
             <a class="btn btn-sm" href="/fichiers/<%= d.id %>?dl=1">Télécharger</a>
+            <% if (edit) { %>
             <form method="post" action="/fichiers/<%= d.id %>/supprimer" class="inline" data-confirm="Supprimer « <%= d.original_name %> » ?">
               <input type="hidden" name="_csrf" value="<%= it.csrf %>">
               <button class="btn btn-sm btn-danger" type="submit">Supprimer</button>
             </form>
+            <% } %>
           </div>
         </li>
         <% } %>
       </ul>
-      <% } %>
+      <% } else { %><div class="card-body"><p class="muted">Aucun document.</p></div><% } %>
+      <% if (edit) { %>
       <div class="card-body">
-        <form method="post" action="/objets/<%= i.id %>/fichiers?_csrf=<%= encodeURIComponent(it.csrf) %>" enctype="multipart/form-data" class="row">
+        <form method="post" action="/objets/<%= i.id %>/fichiers" enctype="multipart/form-data" class="row">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>">
           <label class="sr-only" for="doc-kind">Type</label>
-          <select id="doc-kind" name="kind">
+          <select id="doc-kind" name="kind" class="w-auto">
             <option value="facture">Facture</option>
             <option value="document">Manuel / document</option>
           </select>
@@ -146,24 +170,53 @@
           <button class="btn btn-sm" type="submit">Ajouter</button>
         </form>
       </div>
+      <% } %>
     </section>
   </div>
 
   <div class="stack">
+    <section class="card" id="attribution">
+      <div class="card-head"><h2>Attribution</h2></div>
+      <div class="card-body stack">
+        <% if (it.assigned) { %>
+          <div class="row-between">
+            <div>Attribué à <a href="/personnes/<%= it.assigned.id %>"><strong><%= it.assigned.name %></strong></a><% if (i.assigned_at) { %> <span class="muted small">depuis le <%= it.h.day(i.assigned_at) %></span><% } %></div>
+            <% if (edit) { %><form method="post" action="/objets/<%= i.id %>/attribution" class="inline"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="action" value="retirer"><button class="btn btn-sm" type="submit">Retirer</button></form><% } %>
+          </div>
+        <% } else { %><p class="muted">Attribué à personne.</p><% } %>
+        <% if (edit) { %>
+        <form method="post" action="/objets/<%= i.id %>/attribution" class="stack">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+          <div class="field">
+            <label for="as-person"><%= it.assigned ? 'Attribuer à quelqu’un d’autre' : 'Attribuer à' %></label>
+            <select id="as-person" name="person_id">
+              <option value="">Choisir une personne…</option>
+              <% for (const p of it.people) { %><option value="<%= p.id %>"><%= p.name %></option><% } %>
+            </select>
+          </div>
+          <div class="field"><label for="as-new">ou nouvelle personne</label><input id="as-new" name="new_person" type="text" maxlength="120" placeholder="Nom"></div>
+          <div class="field"><label for="as-date">Depuis le</label><input id="as-date" name="date" type="date" value="<%= it.today %>"></div>
+          <div><button class="btn btn-sm" type="submit">Attribuer</button></div>
+        </form>
+        <% } %>
+      </div>
+    </section>
+
     <section class="card" id="liens">
       <div class="card-head"><h2>Liens</h2></div>
       <% if (it.parents.length || it.children.length) { %>
       <ul class="list">
         <% for (const p of it.parents) { %>
-        <li><div><span class="muted small">Fait partie de</span><br><a href="/objets/<%= p.id %>"><%= p.name %></a><% if (p.label) { %> <span class="muted small">(<%= p.label %>)</span><% } %></div>
-          <form method="post" action="/liens/<%= p.link_id %>/supprimer" class="inline" data-confirm="Supprimer ce lien ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="back" value="<%= i.id %>"><button class="btn-link danger small" type="submit">Retirer</button></form></li>
+        <li><div><span class="muted small">Fait partie de</span><br><a href="/objets/<%= p.id %>"><%= p.name %></a><% if (p.label) { %> <span class="muted small">(<%= p.label %>)</span><% } %><% if (p.deleted_at) { %> <span class="badge badge-gris">corbeille</span><% } %></div>
+          <% if (edit) { %><form method="post" action="/liens/<%= p.link_id %>/supprimer" class="inline" data-confirm="Supprimer ce lien ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="back" value="<%= i.id %>"><button class="btn-link danger small" type="submit">Retirer</button></form><% } %></li>
         <% } %>
         <% for (const c of it.children) { %>
-        <li><div><span class="muted small">Contient</span><br><a href="/objets/<%= c.id %>"><%= c.name %></a><% if (c.label) { %> <span class="muted small">(<%= c.label %>)</span><% } %></div>
-          <form method="post" action="/liens/<%= c.link_id %>/supprimer" class="inline" data-confirm="Supprimer ce lien ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="back" value="<%= i.id %>"><button class="btn-link danger small" type="submit">Retirer</button></form></li>
+        <li><div><span class="muted small">Contient</span><br><a href="/objets/<%= c.id %>"><%= c.name %></a><% if (c.label) { %> <span class="muted small">(<%= c.label %>)</span><% } %><% if (c.deleted_at) { %> <span class="badge badge-gris">corbeille</span><% } %></div>
+          <% if (edit) { %><form method="post" action="/liens/<%= c.link_id %>/supprimer" class="inline" data-confirm="Supprimer ce lien ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><input type="hidden" name="back" value="<%= i.id %>"><button class="btn-link danger small" type="submit">Retirer</button></form><% } %></li>
         <% } %>
       </ul>
-      <% } %>
+      <% } else if (!edit) { %><div class="card-body"><p class="muted">Aucun lien.</p></div><% } %>
+      <% if (edit) { %>
       <div class="card-body">
         <form method="post" action="/objets/<%= i.id %>/liens" class="stack">
           <input type="hidden" name="_csrf" value="<%= it.csrf %>">
@@ -188,18 +241,12 @@
           <div><button class="btn btn-sm" type="submit">Ajouter le lien</button></div>
         </form>
       </div>
+      <% } %>
     </section>
 
+    <% if (edit) { %>
     <section class="card" id="entretien">
-      <div class="card-head"><h2>Entretien et réparations</h2></div>
-      <% if (it.maintenance.length) { %>
-      <ul class="list">
-        <% for (const m of it.maintenance) { %>
-        <li><div><strong><%= m.title %></strong><div class="meta"><%= it.h.day(m.date) %></div><% if (m.description) { %><div class="small pre"><%= m.description %></div><% } %></div>
-          <form method="post" action="/entretien/<%= m.id %>/supprimer" class="inline" data-confirm="Supprimer cette intervention ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn-link danger small" type="submit">Supprimer</button></form></li>
-        <% } %>
-      </ul>
-      <% } %>
+      <div class="card-head"><h2>Nouvelle intervention</h2><span class="muted small">entretien, réparation</span></div>
       <div class="card-body">
         <form method="post" action="/objets/<%= i.id %>/entretien" class="stack">
           <input type="hidden" name="_csrf" value="<%= it.csrf %>">
@@ -208,30 +255,44 @@
             <div class="field"><label for="m-title">Intitulé</label><input id="m-title" name="title" type="text" maxlength="200" required placeholder="ex. Remplacement courroie"></div>
           </div>
           <div class="field"><label for="m-desc">Détails <span class="muted">(facultatif)</span></label><textarea id="m-desc" name="description" rows="2"></textarea></div>
-          <div><button class="btn btn-sm" type="submit">Ajouter l’intervention</button></div>
+          <div><button class="btn btn-sm" type="submit">Ajouter à la chronologie</button></div>
         </form>
       </div>
     </section>
+    <% } %>
 
-    <section class="card">
-      <div class="card-head"><h2>Historique</h2></div>
-      <% if (!it.history.length) { %><div class="empty">Aucun événement.</div><% } else { %>
-      <ul class="list">
-        <% for (const h of it.history) { %>
-        <li><div><div class="small"><%= h.summary %></div><div class="meta"><%= it.h.dateTime(h.created_at) %><% if (h.username) { %> · <%= h.username %><% } %></div><%~ include('/_changes', { changes: h.changes }) %></div></li>
+    <section class="card" id="chronologie">
+      <div class="card-head"><h2>Chronologie</h2><span class="muted small"><%= it.h.plural(it.timeline.length, 'événement', 'événements') %></span></div>
+      <% if (!it.timeline.length) { %><div class="empty">Aucun événement.</div><% } else { %>
+      <ol class="timeline">
+        <% for (const e of it.timeline) { const icon = { creation: 'plus', modification: 'edit', entretien: 'history', deplacement: 'locations', attribution: 'people', fichier: 'copy', lien: 'items', corbeille: 'trash', restauration: 'restore', etiquettes: 'qr' }[e.action] || 'history'; %>
+        <li class="tl-item tl-<%= e.kind %>">
+          <span class="tl-icon"><%~ it.h.icon(icon) %></span>
+          <div class="tl-body">
+            <div class="tl-title"><% if (e.kind === 'maintenance') { %><span class="badge badge-bleu">Intervention</span> <% } %><%= e.title %></div>
+            <div class="meta"><%= e.kind === 'maintenance' ? it.h.day(e.date) : it.h.dateTime(e.at) %><% if (e.user) { %> · <%= e.user %><% } %></div>
+            <% if (e.text) { %><div class="small pre"><%= e.text %></div><% } %>
+            <%~ include('/_changes', { changes: e.changes }) %>
+            <% if (e.kind === 'maintenance' && edit) { %>
+            <form method="post" action="/entretien/<%= e.id %>/supprimer" class="inline" data-confirm="Supprimer cette intervention ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn-link danger small" type="submit">Supprimer</button></form>
+            <% } %>
+          </div>
+        </li>
         <% } %>
-      </ul>
+      </ol>
       <% } %>
     </section>
 
+    <% if (edit) { %>
     <section class="card">
       <div class="card-head"><h2>Zone de danger</h2></div>
       <div class="card-body">
-        <form method="post" action="/objets/<%= i.id %>/supprimer" data-confirm="Supprimer définitivement « <%= i.name %> », ses caractéristiques, ses fichiers et son historique d’entretien ?">
+        <form method="post" action="/objets/<%= i.id %>/supprimer" data-confirm="Mettre « <%= i.name %> » à la corbeille ? Il restera récupérable pendant 30 jours.">
           <input type="hidden" name="_csrf" value="<%= it.csrf %>">
-          <button class="btn btn-danger" type="submit">Supprimer l’objet</button>
+          <button class="btn btn-danger" type="submit"><%~ it.h.icon('trash') %>Mettre à la corbeille</button>
         </form>
       </div>
     </section>
+    <% } %>
   </div>
 </div>

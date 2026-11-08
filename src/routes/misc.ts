@@ -1,5 +1,6 @@
 // Tableau de bord, statuts, historique, compte, export, étiquettes QR.
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { LABEL_FORMATS, resolveFormat, formatCss } from '../services/labels.js';
 import QRCode from 'qrcode';
 import { db } from '../db.js';
 import { config } from '../config.js';
@@ -11,6 +12,7 @@ import { Body, str, id, intIn } from '../services/forms.js';
 import { parseFilters, buildItemQuery, orderItems, resolveFilters } from '../services/items.js';
 import { STATUS_COLORS } from '../seed.js';
 import { completenessSummary } from '../services/completeness.js';
+import { alert } from '../services/notify.js';
 import { verifyPassword, hashPassword, passwordProblems, decrypt } from '../security.js';
 import { checkTotp, createSession } from '../auth.js';
 import { newTotpSecret } from '../totp.js';
@@ -23,10 +25,32 @@ const ENTITY_LABELS: Record<string, string> = {
   import: 'Imports',
   connexion: 'Connexions',
   compte: 'Compte',
+  personne: 'Personnes',
 };
 
 async function qrSvg(url: string) {
   return QRCode.toString(url, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' });
+}
+
+// Format d'étiquette : paramètre « f » (et « w », « h » en personnalisé), mémorisé dans un cookie.
+function labelFormat(req: FastifyRequest, reply: FastifyReply) {
+  const q = req.query as Body;
+  let key = str(q, 'f', 30);
+  let w = Number(q.w);
+  let h = Number(q.h);
+  if (!key) {
+    const saved = String(req.cookies['inv_etiquette'] ?? '').split('|');
+    key = saved[0] || LABEL_FORMATS[0].key;
+    w = Number(saved[1]);
+    h = Number(saved[2]);
+  } else {
+    reply.setCookie('inv_etiquette', [key, Number.isFinite(w) ? w : '', Number.isFinite(h) ? h : ''].join('|'), { path: '/', httpOnly: true, sameSite: 'lax', secure: config.cookieSecure, maxAge: 365 * 86400 });
+  }
+  const format = resolveFormat(key, w, h);
+  const qsFormat = new URLSearchParams({ f: format.key, ...(format.key === 'perso' ? { w: String(format.w), h: String(format.h) } : {}) }).toString();
+  // Conserve les autres paramètres (filtres, sélection) lors du changement de format.
+  const keep = Object.entries(q).filter(([k]) => !['f', 'w', 'h'].includes(k)).map(([k, v]) => [k, String(v)]);
+  return { format, formats: LABEL_FORMATS, styles: [`/etiquettes/format.css?${qsFormat}`], keepParams: keep };
 }
 
 export async function miscRoutes(app: FastifyInstance) {
@@ -36,24 +60,25 @@ export async function miscRoutes(app: FastifyInstance) {
     const totals = await db
       .selectFrom('items')
       .select((eb) => [eb.fn.countAll<number>().as('n'), eb.fn.sum<number>('quantity').as('units')])
+      .where('deleted_at', 'is', null)
       .executeTakeFirstOrThrow();
     const total = Number(totals.n);
-    const lots = await db.selectFrom('items').select(db.fn.countAll<number>().as('n')).where('quantity', '>', 1).executeTakeFirstOrThrow();
+    const lots = await db.selectFrom('items').select(db.fn.countAll<number>().as('n')).where('quantity', '>', 1).where('deleted_at', 'is', null).executeTakeFirstOrThrow();
     const byStatus = (
       await db
         .selectFrom('statuses')
-        .leftJoin('items', 'items.status_id', 'statuses.id')
+        .leftJoin('items', (j) => j.onRef('items.status_id', '=', 'statuses.id').on('items.deleted_at', 'is', null))
         .select(['statuses.id', 'statuses.name', 'statuses.color', 'statuses.to_handle', db.fn.count<number>('items.id').as('n')])
         .groupBy(['statuses.id', 'statuses.name', 'statuses.color', 'statuses.to_handle', 'statuses.sort_order'])
         .orderBy('statuses.sort_order')
         .execute()
     ).map((s) => ({ ...s, n: Number(s.n) }));
-    const noStatus = Number((await db.selectFrom('items').select(db.fn.countAll<number>().as('n')).where('status_id', 'is', null).executeTakeFirstOrThrow()).n);
-    const locRows = await db.selectFrom('items').select(['location_id', db.fn.countAll<number>().as('n')]).groupBy('location_id').execute();
+    const noStatus = Number((await db.selectFrom('items').select(db.fn.countAll<number>().as('n')).where('status_id', 'is', null).where('deleted_at', 'is', null).executeTakeFirstOrThrow()).n);
+    const locRows = await db.selectFrom('items').select(['location_id', db.fn.countAll<number>().as('n')]).where('deleted_at', 'is', null).groupBy('location_id').execute();
     const locCount = new Map(locRows.map((r) => [r.location_id, Number(r.n)]));
     const locTotal = (lid: number) => descendantIds(locs, lid).reduce((s, d) => s + (locCount.get(d) ?? 0), 0);
     const byLocation = locs.roots.map((r) => ({ ...r, n: locTotal(r.id) }));
-    const catRows = await db.selectFrom('items').select(['category_id', db.fn.countAll<number>().as('n')]).groupBy('category_id').execute();
+    const catRows = await db.selectFrom('items').select(['category_id', db.fn.countAll<number>().as('n')]).where('deleted_at', 'is', null).groupBy('category_id').execute();
     const catCount = new Map(catRows.map((r) => [r.category_id, Number(r.n)]));
     const byCategory = cats.roots.map((r) => ({ ...r, n: descendantIds(cats, r.id).reduce((s, d) => s + (catCount.get(d) ?? 0), 0) }));
     const unlocated = locCount.get(null) ?? 0;
@@ -74,12 +99,13 @@ export async function miscRoutes(app: FastifyInstance) {
       { label: 'Sans n° de série', n: comp.serial.length, href: '/objets?manque=serie' },
       { label: 'Caractéristiques manquantes', n: comp.attrs.length, href: '/objets?manque=carac' },
     ];
-    const neverPrinted = Number((await db.selectFrom('items').select(db.fn.countAll<number>().as('n')).where('label_printed_at', 'is', null).executeTakeFirstOrThrow()).n);
+    const neverPrinted = Number((await db.selectFrom('items').select(db.fn.countAll<number>().as('n')).where('label_printed_at', 'is', null).where('deleted_at', 'is', null).executeTakeFirstOrThrow()).n);
 
     const recent = await db
       .selectFrom('items')
       .leftJoin('statuses', 'statuses.id', 'items.status_id')
       .select(['items.id', 'items.name', 'items.brand', 'items.model', 'items.quantity', 'items.location_id', 'items.updated_at', 'statuses.name as status_name', 'statuses.color as status_color'])
+      .where('items.deleted_at', 'is', null)
       .orderBy('items.updated_at', 'desc')
       .orderBy('items.id', 'desc')
       .limit(10)
@@ -106,7 +132,7 @@ export async function miscRoutes(app: FastifyInstance) {
   app.get('/statuts', async (req, reply) => {
     const rows = await db
       .selectFrom('statuses')
-      .leftJoin('items', 'items.status_id', 'statuses.id')
+      .leftJoin('items', (j) => j.onRef('items.status_id', '=', 'statuses.id').on('items.deleted_at', 'is', null))
       .select(['statuses.id', 'statuses.name', 'statuses.color', 'statuses.sort_order', 'statuses.to_handle', db.fn.count<number>('items.id').as('n')])
       .groupBy(['statuses.id', 'statuses.name', 'statuses.color', 'statuses.sort_order', 'statuses.to_handle'])
       .orderBy('statuses.sort_order')
@@ -205,7 +231,11 @@ export async function miscRoutes(app: FastifyInstance) {
       .where('expires_at', '>', new Date())
       .orderBy('last_seen_at', 'desc')
       .execute();
-    return render(req, reply, 'account', { title: 'Mon compte', account: user, sessions, currentSession: req.session!.id, minLength: config.passwordMinLength });
+    const [passkeys, tokens] = await Promise.all([
+      db.selectFrom('webauthn_credentials').select(['id', 'name', 'created_at', 'last_used_at']).where('user_id', '=', user.id).orderBy('created_at').execute(),
+      db.selectFrom('api_tokens').select(['id', 'name', 'prefix', 'scope', 'created_at', 'last_used_at', 'expires_at']).where('user_id', '=', user.id).orderBy('created_at').execute(),
+    ]);
+    return render(req, reply, 'account', { title: 'Mon compte', account: user, sessions, currentSession: req.session!.id, minLength: config.passwordMinLength, passkeys, tokens });
   });
 
   app.post('/compte/mot-de-passe', async (req, reply) => {
@@ -226,6 +256,7 @@ export async function miscRoutes(app: FastifyInstance) {
         // Déconnecte les autres sessions.
         await db.deleteFrom('sessions').where('user_id', '=', user.id).where('id', '!=', req.session!.id).execute();
         await audit(req, 'compte', user.id, 'mot-de-passe', 'Mot de passe modifié (autres sessions fermées)');
+        alert('Mot de passe modifié', [`Compte : ${user.username}`, `Adresse : ${req.ip}`]);
         setFlash(reply, 'ok', 'Mot de passe modifié. Vos autres sessions ont été fermées.');
       }
     }
@@ -243,6 +274,7 @@ export async function miscRoutes(app: FastifyInstance) {
     await db.updateTable('users').set({ totp_last_step: step }).where('id', '=', user.id).execute();
     await db.deleteFrom('sessions').where('user_id', '=', user.id).where('id', '!=', req.session!.id).execute();
     await audit(req, 'compte', user.id, 'totp', 'Réinitialisation du TOTP demandée');
+    alert('Réinitialisation du TOTP demandée', [`Compte : ${user.username}`, `Adresse : ${req.ip}`]);
     // Nouvelle session limitée à l'enrôlement : l'ancien secret reste valable tant que le nouveau n'est pas confirmé.
     await createSession(req, reply, user.id, 'pending_enroll', newTotpSecret());
     return redirect(req, reply, '/login/enroll');
@@ -315,7 +347,7 @@ export async function miscRoutes(app: FastifyInstance) {
 
   app.get('/export/inventaire.json', async (req, reply) => {
     const [items, values, locations, categories, defs, statuses, links, maintenance, attachments] = await Promise.all([
-      db.selectFrom('items').selectAll().orderBy('id').execute(),
+      db.selectFrom('items').selectAll().where('deleted_at', 'is', null).orderBy('id').execute(),
       db.selectFrom('item_values').selectAll().orderBy('id').execute(),
       db.selectFrom('locations').selectAll().orderBy('id').execute(),
       db.selectFrom('categories').selectAll().orderBy('id').execute(),
@@ -359,7 +391,7 @@ export async function miscRoutes(app: FastifyInstance) {
       labels.push({ title: i.name, sub: [i.brand, i.model].filter(Boolean).join(' '), code: `#${i.id}`, svg: await qrSvg(`${config.publicUrl}/objets/${i.id}`) });
     }
     const back = f.etiquette === 'jamais' && !f.ids.length ? '/' : '/objets';
-    return render(req, reply, 'labels', { title: 'Étiquettes', labels, itemIds: items.map((i) => i.id), back, truncated: items.length === 500 });
+    return render(req, reply, 'labels', { title: 'Étiquettes', labels, itemIds: items.map((i) => i.id), back, truncated: items.length === 500, ...labelFormat(req, reply) });
   });
 
   app.get('/objets/:id/etiquette', async (req, reply) => {
@@ -367,7 +399,7 @@ export async function miscRoutes(app: FastifyInstance) {
     const i = itemId ? await db.selectFrom('items').select(['id', 'name', 'brand', 'model']).where('id', '=', itemId).executeTakeFirst() : undefined;
     if (!i) return reply.callNotFound();
     const labels = [{ title: i.name, sub: [i.brand, i.model].filter(Boolean).join(' '), code: `#${i.id}`, svg: await qrSvg(`${config.publicUrl}/objets/${i.id}`) }];
-    return render(req, reply, 'labels', { title: `Étiquette ${i.name}`, labels, itemIds: [i.id], back: `/objets/${i.id}`, truncated: false });
+    return render(req, reply, 'labels', { title: `Étiquette ${i.name}`, labels, itemIds: [i.id], back: `/objets/${i.id}`, truncated: false, ...labelFormat(req, reply) });
   });
 
   app.get('/emplacements/:id/etiquette', async (req, reply) => {
@@ -376,7 +408,14 @@ export async function miscRoutes(app: FastifyInstance) {
     const l = lid ? locs.byId.get(lid) : undefined;
     if (!l) return reply.callNotFound();
     const labels = [{ title: l.name, sub: l.path, code: `E${l.id}`, svg: await qrSvg(`${config.publicUrl}/emplacements/${l.id}`) }];
-    return render(req, reply, 'labels', { title: `Étiquette ${l.name}`, labels, itemIds: [], back: `/emplacements/${l.id}`, truncated: false });
+    return render(req, reply, 'labels', { title: `Étiquette ${l.name}`, labels, itemIds: [], back: `/emplacements/${l.id}`, truncated: false, ...labelFormat(req, reply) });
+  });
+
+  // Feuille de style du format d'étiquette choisi.
+  app.get('/etiquettes/format.css', async (req, reply) => {
+    const q = req.query as Body;
+    const f = resolveFormat(str(q, 'f', 30), Number(q.w), Number(q.h));
+    return reply.type('text/css; charset=utf-8').header('Cache-Control', 'private, max-age=3600').send(formatCss(f));
   });
 
   // Marque des étiquettes comme imprimées (appelé par le bouton « Imprimer »).

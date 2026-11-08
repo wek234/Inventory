@@ -1,0 +1,34 @@
+<% layout('/layout') %>
+<div class="page-head">
+  <div>
+    <a class="btn btn-back" href="/objets">Retour à la liste</a>
+    <h1>Modifier <%= it.h.plural(it.items.length, 'objet', 'objets') %></h1>
+    <p class="muted small">Seuls les champs que vous changez sont appliqués ; les autres restent tels quels sur chaque objet.</p>
+  </div>
+</div>
+<div class="cols">
+  <form method="post" action="/objets/masse" class="card">
+    <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+    <input type="hidden" name="ids" value="<%= it.items.map(i => i.id).join(',') %>">
+    <div class="card-body form-grid">
+      <div class="field"><label for="b-status">Statut</label>
+        <select id="b-status" name="status"><option value="">Ne pas changer</option><option value="none">Retirer le statut</option><% for (const s of it.statuses) { %><option value="<%= s.id %>"><%= s.name %></option><% } %></select></div>
+      <div class="field"><label for="b-loc">Emplacement</label>
+        <select id="b-loc" name="location"><option value="">Ne pas changer</option><option value="none">Retirer l’emplacement</option><% for (const l of it.locs) { %><option value="<%= l.id %>"><%= it.h.indent(l.depth) %><%= l.name %></option><% } %></select></div>
+      <div class="field"><label for="b-cat">Catégorie</label>
+        <select id="b-cat" name="category"><option value="">Ne pas changer</option><option value="none">Retirer la catégorie</option><% for (const c of it.cats) { %><option value="<%= c.id %>"><%= it.h.indent(c.depth) %><%= c.name %></option><% } %></select></div>
+      <div class="field"><label for="b-person">Attribution</label>
+        <select id="b-person" name="person"><option value="">Ne pas changer</option><option value="none">Retirer l’attribution</option><% for (const p of it.people) { %><option value="<%= p.id %>">Attribuer à <%= p.name %></option><% } %></select></div>
+    </div>
+    <div class="sticky-actions">
+      <a class="btn" href="/objets">Annuler</a>
+      <button class="btn btn-primary" type="submit" data-confirm-submit="Appliquer ces changements aux <%= it.items.length %> objets ?">Appliquer aux <%= it.items.length %> objets</button>
+    </div>
+  </form>
+  <section class="card">
+    <div class="card-head"><h2>Objets concernés</h2></div>
+    <ul class="list">
+      <% for (const i of it.items) { %><li><a href="/objets/<%= i.id %>"><%= i.name %></a></li><% } %>
+    </ul>
+  </section>
+</div>

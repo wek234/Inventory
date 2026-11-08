@@ -56,6 +56,12 @@
   document.addEventListener('change', function (e) {
     var t = e.target;
     if (t.matches && t.matches('input[data-row-include]')) t.closest('tr').classList.toggle('excluded', !t.checked);
+    // Format d'étiquette : affiche la taille personnalisée, applique sinon directement.
+    if (t.matches && t.matches('[data-autosubmit-get]')) {
+      var custom = t.form.querySelector('[data-custom-size]');
+      if (custom) custom.hidden = t.value !== 'perso';
+      if (t.value !== 'perso') t.form.submit();
+    }
     // Soumission automatique de certains formulaires (ex. bascule de disposition à l'import)
     if (t.matches && t.matches('[data-autosubmit]')) {
       var form = t.form;
@@ -104,6 +110,7 @@
     if (clear) clear.hidden = !sel.length;
     document.querySelectorAll('a[data-selection-link]').forEach(function (a) {
       if (!a.dataset.hrefAll) a.dataset.hrefAll = a.getAttribute('href');
+      if (a.hasAttribute('data-selection-only')) a.hidden = !sel.length;
       if (sel.length) {
         var sort = new URLSearchParams(window.location.search);
         var p = new URLSearchParams();
@@ -115,7 +122,7 @@
         a.classList.add('btn-primary');
       } else {
         a.setAttribute('href', a.dataset.hrefAll);
-        a.textContent = a.dataset.labelAll;
+        if (a.dataset.labelAll) a.textContent = a.dataset.labelAll;
         a.classList.remove('btn-primary');
       }
     });
@@ -155,6 +162,228 @@
     });
   }
   syncSel();
+
+
+  // ---------- Clés d'accès (passkeys) ----------
+  function csrfHeader() {
+    var m = document.querySelector('meta[name=csrf-token]');
+    return m ? m.content : '';
+  }
+  function postJSON(url, data) {
+    return fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfHeader() },
+      body: JSON.stringify(data || {})
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.erreur || 'Erreur ' + r.status); return j; });
+    });
+  }
+  function passkeyError(msg) {
+    var el = document.querySelector('[data-passkey-error]');
+    if (el) { el.hidden = !msg; el.textContent = msg || ''; }
+  }
+  function webauthnMessage(err) {
+    if (err && err.name === 'NotAllowedError') return 'Opération annulée ou délai dépassé.';
+    if (err && err.name === 'InvalidStateError') return 'Cette clé est déjà enregistrée.';
+    return (err && err.message) || 'Erreur inattendue.';
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-action=passkey-register], [data-action=passkey-login]');
+    if (!t) return;
+    var W = window.SimpleWebAuthnBrowser;
+    if (!W || !window.PublicKeyCredential) { passkeyError('Ce navigateur ne prend pas en charge les clés d’accès.'); return; }
+    passkeyError('');
+    t.disabled = true;
+    if (t.dataset.action === 'passkey-register') {
+      var nameInput = document.querySelector('[data-passkey-name]');
+      postJSON('/compte/passkeys/options').then(function (opts) {
+        return W.startRegistration({ optionsJSON: opts });
+      }).then(function (resp) {
+        return postJSON('/compte/passkeys/verifier', { response: resp, name: nameInput ? nameInput.value : '' });
+      }).then(function () {
+        window.location.href = '/compte#passkeys';
+        window.location.reload();
+      }).catch(function (err) { passkeyError(webauthnMessage(err)); t.disabled = false; });
+    } else {
+      postJSON('/login/passkey/options').then(function (opts) {
+        return W.startAuthentication({ optionsJSON: opts });
+      }).then(function (resp) {
+        return postJSON('/login/passkey/verifier', { response: resp });
+      }).then(function (r) {
+        window.location.href = r.next || '/';
+      }).catch(function (err) { passkeyError(webauthnMessage(err)); t.disabled = false; });
+    }
+  });
+
+  // ---------- Recherche rapide (Ctrl+K) ----------
+  var qs = null;
+  function closeQuick() { if (qs) { qs.root.remove(); qs = null; } }
+  function renderQuick(items) {
+    qs.items = items;
+    qs.active = items.length ? 0 : -1;
+    qs.list.innerHTML = '';
+    if (!items.length) {
+      var li = document.createElement('li');
+      li.className = 'qs-empty';
+      li.textContent = qs.input.value.trim() ? 'Aucun résultat' : 'Tapez pour chercher un objet, un emplacement, une catégorie, une personne ou une page';
+      qs.list.appendChild(li);
+      return;
+    }
+    items.forEach(function (it, i) {
+      var li = document.createElement('li');
+      var a = document.createElement('a');
+      a.href = it.href;
+      a.className = 'qs-item' + (i === 0 ? ' active' : '');
+      var type = document.createElement('span'); type.className = 'qs-type'; type.textContent = it.type;
+      var label = document.createElement('span'); label.className = 'qs-label'; label.textContent = it.label;
+      a.appendChild(type); a.appendChild(label);
+      if (it.sub) { var sub = document.createElement('span'); sub.className = 'qs-sub'; sub.textContent = it.sub; a.appendChild(sub); }
+      li.appendChild(a);
+      qs.list.appendChild(li);
+    });
+  }
+  function moveQuick(d) {
+    if (!qs || !qs.items.length) return;
+    var links = qs.list.querySelectorAll('.qs-item');
+    links[qs.active].classList.remove('active');
+    qs.active = (qs.active + d + links.length) % links.length;
+    links[qs.active].classList.add('active');
+    links[qs.active].scrollIntoView({ block: 'nearest' });
+  }
+  function openQuick() {
+    if (qs) return;
+    var root = document.createElement('div');
+    root.className = 'qs-backdrop';
+    root.innerHTML = '<div class="qs-box" role="dialog" aria-modal="true" aria-label="Recherche rapide"><input class="qs-input" type="search" placeholder="Rechercher…" aria-label="Rechercher" autocomplete="off"><ul class="qs-list" role="listbox"></ul><div class="qs-help">↑ ↓ pour naviguer · Entrée pour ouvrir · Échap pour fermer</div></div>';
+    document.body.appendChild(root);
+    qs = { root: root, input: root.querySelector('.qs-input'), list: root.querySelector('.qs-list'), items: [], active: -1, timer: null, seq: 0 };
+    renderQuick([]);
+    qs.input.focus();
+    root.addEventListener('mousedown', function (e) { if (e.target === root) closeQuick(); });
+    qs.input.addEventListener('input', function () {
+      clearTimeout(qs.timer);
+      var q = qs.input.value.trim();
+      var seq = ++qs.seq;
+      qs.timer = setTimeout(function () {
+        if (!q) { renderQuick([]); return; }
+        fetch('/recherche.json?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { if (qs && seq === qs.seq) renderQuick(j.resultats || []); })
+          .catch(function () {});
+      }, 150);
+    });
+    qs.input.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); moveQuick(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); moveQuick(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (qs.items[qs.active]) window.location.href = qs.items[qs.active].href; }
+      else if (e.key === 'Escape') { closeQuick(); }
+    });
+  }
+  if (document.body.hasAttribute('data-app')) {
+    document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if (qs) closeQuick(); else openQuick(); }
+      else if (e.key === 'Escape' && qs) closeQuick();
+    });
+    document.addEventListener('click', function (e) { if (e.target.closest('[data-action=quick-search]')) openQuick(); });
+  }
+
+
+  // ---------- Mode rangement : scanner QR ----------
+  var scanRoot = document.querySelector('[data-scan]');
+  if (scanRoot) {
+    var target = null; // { id, chemin }
+    var lastCode = '', lastAt = 0, moved = 0, stream = null, busy = false;
+    var video = scanRoot.querySelector('[data-scan-video]');
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d', { willReadFrequently: true });
+    var targetEl = scanRoot.querySelector('[data-scan-target]');
+    var logEl = scanRoot.querySelector('[data-scan-log]');
+    var countEl = scanRoot.querySelector('[data-scan-count]');
+    var selectEl = scanRoot.querySelector('[data-scan-select]');
+    var hintEl = scanRoot.querySelector('[data-scan-hint]');
+    function setTarget(t) {
+      target = t;
+      targetEl.innerHTML = '';
+      var strong = document.createElement('strong'); strong.textContent = t.chemin;
+      targetEl.appendChild(document.createTextNode('Ranger dans : ')); targetEl.appendChild(strong);
+      targetEl.classList.add('ok');
+      selectEl.value = String(t.id);
+    }
+    function log(text, kind) {
+      if (moved === 0 && logEl.querySelector('.muted')) logEl.innerHTML = '';
+      var li = document.createElement('li');
+      li.className = 'scan-' + (kind || 'ok');
+      li.textContent = text;
+      logEl.insertBefore(li, logEl.firstChild);
+    }
+    function beep(ok) {
+      try {
+        var ac = new (window.AudioContext || window.webkitAudioContext)();
+        var o = ac.createOscillator(); o.frequency.value = ok ? 880 : 220; o.connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.12);
+      } catch (e) { /* son indisponible */ }
+      if (navigator.vibrate) navigator.vibrate(ok ? 60 : [60, 40, 60]);
+    }
+    function handle(code) {
+      code = String(code || '').trim();
+      if (!code || busy) return;
+      var now = Date.now();
+      if (code === lastCode && now - lastAt < 2500) return;
+      lastCode = code; lastAt = now;
+      // « E12 » (étiquette d'emplacement) -> adresse d'emplacement
+      var m = /^E(\d+)$/i.exec(code);
+      if (m) code = '/emplacements/' + m[1];
+      busy = true;
+      postJSON('/rangement/resoudre', { code: code }).then(function (r) {
+        if (r.type === 'emplacement') { setTarget({ id: r.id, chemin: r.chemin }); beep(true); return; }
+        if (!target) { log('« ' + r.nom + ' » : scannez d’abord un emplacement.', 'warn'); beep(false); return; }
+        return postJSON('/rangement/deplacer', { item_id: r.id, location_id: target.id }).then(function (d) {
+          moved++; countEl.textContent = String(moved);
+          log(d.deja ? '« ' + d.nom + ' » était déjà dans ' + d.chemin : '« ' + d.nom + ' » → ' + d.chemin + (d.avant ? ' (venait de ' + d.avant + ')' : ''), d.deja ? 'info' : 'ok');
+          beep(true);
+        });
+      }).catch(function (err) { log(err.message, 'warn'); beep(false); }).then(function () { busy = false; });
+    }
+    function tick() {
+      if (!stream) return;
+      if (video.readyState === video.HAVE_ENOUGH_DATA && window.jsQR) {
+        var w = video.videoWidth, h = video.videoHeight;
+        var scale = Math.min(1, 640 / Math.max(w, h));
+        canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var res = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        if (res && res.data) handle(res.data);
+      }
+      setTimeout(function () { requestAnimationFrame(tick); }, 120);
+    }
+    scanRoot.querySelector('[data-action=scan-start]').addEventListener('click', function (e) {
+      var btn = e.currentTarget;
+      if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; scanRoot.querySelector('[data-scan-view]').hidden = true; btn.textContent = 'Démarrer la caméra'; return; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { hintEl.textContent = 'Caméra indisponible : connexion non sécurisée (HTTPS requis) ou navigateur non compatible.'; return; }
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }).then(function (s) {
+        stream = s; video.srcObject = s; video.play();
+        scanRoot.querySelector('[data-scan-view]').hidden = false;
+        btn.textContent = 'Arrêter la caméra';
+        hintEl.textContent = 'Visez une étiquette QR.';
+        tick();
+      }).catch(function () { hintEl.textContent = 'Accès à la caméra refusé ou impossible.'; });
+    });
+    scanRoot.querySelector('[data-scan-manual]').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var input = e.currentTarget.querySelector('input');
+      lastCode = ''; handle(input.value); input.value = ''; input.focus();
+    });
+    selectEl.addEventListener('change', function () {
+      var o = selectEl.options[selectEl.selectedIndex];
+      if (o && o.value) setTarget({ id: Number(o.value), chemin: o.dataset.path });
+    });
+  }
+
+  // PWA : enregistrement du service worker (fichiers statiques et page hors ligne uniquement).
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
+  }
 
   // Jeton CSRF ajouté aux requêtes HTMX
   document.body.addEventListener('htmx:configRequest', function (e) {

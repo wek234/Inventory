@@ -13,7 +13,7 @@ import { removeStoredFiles } from './attachments.js';
 import { itemCompleteness, isValidNaField } from '../services/completeness.js';
 
 const PAGE_SIZE = 50;
-const FREE_TYPES: AttrType[] = ['text', 'number', 'date', 'boolean'];
+const FREE_TYPES: AttrType[] = ['text', 'number', 'date', 'boolean', 'url'];
 
 interface FormValue {
   name: string;
@@ -144,7 +144,7 @@ function formFromBody(body: Body): ItemForm {
   };
 }
 
-async function renderForm(req: FastifyRequest, reply: FastifyReply, opts: { item: ItemForm; itemId?: number; values: FormValue[]; errors?: Record<string, string>; status?: number }) {
+async function renderForm(req: FastifyRequest, reply: FastifyReply, opts: { item: ItemForm; itemId?: number; values: FormValue[]; errors?: Record<string, string>; status?: number; duplicateOf?: { id: number; name: string } }) {
   const { cats, locs, statuses } = await lookups();
   const defs = await effectiveDefs(cats, opts.item.category_id);
   return render(
@@ -161,6 +161,7 @@ async function renderForm(req: FastifyRequest, reply: FastifyReply, opts: { item
       locs: locs.flat,
       statuses,
       freeTypes: FREE_TYPES,
+      duplicateOf: opts.duplicateOf ?? null,
     },
     opts.status ?? 200,
   );
@@ -212,6 +213,21 @@ async function auditView(itemId: number, cats: Tree, locs: Tree) {
 }
 
 export async function itemRoutes(app: FastifyInstance) {
+  // Un objet dans la corbeille est en lecture seule : seule la restauration est possible.
+  app.addHook('preHandler', async (req, reply) => {
+    const path = req.url.split('?')[0];
+    const m = /^\/objets\/(\d+)(\/[a-z-]+)?$/.exec(path);
+    if (!m) return;
+    const action = m[2] ?? '';
+    const mutating = req.method === 'POST' || action === '/modifier';
+    if (!mutating || action === '/restaurer') return;
+    const it = await db.selectFrom('items').select('deleted_at').where('id', '=', Number(m[1])).executeTakeFirst();
+    if (it?.deleted_at) {
+      setFlash(reply, 'erreur', 'Cet objet est dans la corbeille : restaurez-le pour le modifier.');
+      return redirect(req, reply, `/objets/${m[1]}`);
+    }
+  });
+
   // ---- Liste filtrée ----
   app.get('/objets', async (req, reply) => {
     const q = req.query as Record<string, unknown>;
@@ -263,6 +279,7 @@ export async function itemRoutes(app: FastifyInstance) {
       sorts: SORTS,
       ops: OPS,
       manques: MANQUES,
+      people: await db.selectFrom('people').select(['id', 'name']).orderBy('name').execute(),
     };
     if (isHtmx(req) && req.headers['hx-target'] === 'resultats') return render(req, reply, 'items/_results', data);
     return render(req, reply, 'items/list', data);
@@ -271,6 +288,23 @@ export async function itemRoutes(app: FastifyInstance) {
   // ---- Création ----
   app.get('/objets/nouveau', async (req, reply) => {
     const q = req.query as Record<string, unknown>;
+    const fromId = id(q.depuis);
+    const src = fromId ? await db.selectFrom('items').selectAll().where('id', '=', fromId).executeTakeFirst() : undefined;
+    if (src) {
+      // Dupliquer : mêmes informations et caractéristiques, sans n° de série ni fichiers ; rien n'est créé avant validation.
+      const item: ItemForm = {
+        name: `${src.name} (copie)`.slice(0, 200),
+        brand: src.brand ?? '',
+        model: src.model ?? '',
+        serial: '',
+        quantity: String(src.quantity),
+        category_id: src.category_id,
+        location_id: src.location_id,
+        status_id: src.status_id,
+        notes: src.notes ?? '',
+      };
+      return renderForm(req, reply, { item, values: await valuesFromDb(src.id), duplicateOf: { id: src.id, name: src.name } });
+    }
     const item: ItemForm = { name: '', brand: '', model: '', serial: '', quantity: '1', category_id: id(q.cat), location_id: id(q.loc), status_id: null, notes: '' };
     return renderForm(req, reply, { item, values: [] });
   });
@@ -316,19 +350,19 @@ export async function itemRoutes(app: FastifyInstance) {
       .executeTakeFirst();
     if (!item) return reply.callNotFound();
     const { cats, locs } = await lookups();
-    const [values, attachments, parents, children, maintenance, history, allItems] = await Promise.all([
+    const [values, attachments, parents, children, maintenance, history, allItems, people] = await Promise.all([
       db.selectFrom('item_values').selectAll().where('item_id', '=', itemId).orderBy('sort_order').orderBy('id').execute(),
       db.selectFrom('attachments').selectAll().where('item_id', '=', itemId).orderBy('created_at', 'desc').execute(),
       db
         .selectFrom('item_links')
         .innerJoin('items', 'items.id', 'item_links.parent_item_id')
-        .select(['item_links.id as link_id', 'item_links.label', 'items.id', 'items.name'])
+        .select(['item_links.id as link_id', 'item_links.label', 'items.id', 'items.name', 'items.deleted_at'])
         .where('item_links.child_item_id', '=', itemId)
         .execute(),
       db
         .selectFrom('item_links')
         .innerJoin('items', 'items.id', 'item_links.child_item_id')
-        .select(['item_links.id as link_id', 'item_links.label', 'items.id', 'items.name'])
+        .select(['item_links.id as link_id', 'item_links.label', 'items.id', 'items.name', 'items.deleted_at'])
         .where('item_links.parent_item_id', '=', itemId)
         .execute(),
       db.selectFrom('maintenance').selectAll().where('item_id', '=', itemId).orderBy('date', 'desc').orderBy('id', 'desc').execute(),
@@ -339,10 +373,17 @@ export async function itemRoutes(app: FastifyInstance) {
         .where('audit_log.entity', '=', 'objet')
         .where('audit_log.entity_id', '=', itemId)
         .orderBy('audit_log.id', 'desc')
-        .limit(50)
+        .limit(200)
         .execute(),
-      db.selectFrom('items').select(['id', 'name']).where('id', '!=', itemId).orderBy('name').execute(),
+      db.selectFrom('items').select(['id', 'name']).where('id', '!=', itemId).where('deleted_at', 'is', null).orderBy('name').execute(),
+      db.selectFrom('people').select(['id', 'name']).orderBy('name').execute(),
     ]);
+    // Chronologie : historique de la fiche et interventions d'entretien, du plus récent au plus ancien.
+    const timeline = [
+      ...history.map((h) => ({ kind: 'event', action: h.action, at: new Date(h.created_at), title: h.summary, user: h.username, changes: h.changes ? JSON.parse(h.changes) : null, text: null as string | null })),
+      ...maintenance.map((m) => ({ kind: 'maintenance', action: 'entretien', at: new Date(m.date + 'T12:00:00Z'), title: m.title, user: null, changes: null, text: m.description, id: m.id, date: m.date })),
+    ].sort((a, b) => b.at.getTime() - a.at.getTime());
+    const assigned = item.assigned_person_id ? people.find((p) => p.id === item.assigned_person_id) ?? null : null;
     const completeness = await itemCompleteness(cats, item);
     return render(req, reply, 'items/show', {
       title: item.name,
@@ -356,8 +397,11 @@ export async function itemRoutes(app: FastifyInstance) {
       parents,
       children,
       maintenance,
-      history: history.map((h) => ({ ...h, changes: h.changes ? JSON.parse(h.changes) : null })),
+      timeline,
       allItems,
+      people,
+      assigned,
+      primary: attachments.find((a) => a.kind === 'photo' && a.is_primary) ?? attachments.find((a) => a.kind === 'photo') ?? null,
       today: new Date().toISOString().slice(0, 10),
     });
   });
@@ -408,14 +452,56 @@ export async function itemRoutes(app: FastifyInstance) {
 
   app.post('/objets/:id/supprimer', async (req, reply) => {
     const itemId = id((req.params as Body).id);
-    const it = itemId ? await db.selectFrom('items').select(['id', 'name']).where('id', '=', itemId).executeTakeFirst() : undefined;
+    const it = itemId ? await db.selectFrom('items').select(['id', 'name']).where('id', '=', itemId).where('deleted_at', 'is', null).executeTakeFirst() : undefined;
     if (!it) return reply.callNotFound();
-    const files = await db.selectFrom('attachments').select('stored_name').where('item_id', '=', it.id).execute();
-    await db.deleteFrom('items').where('id', '=', it.id).execute();
-    await removeStoredFiles(files.map((f) => f.stored_name));
-    await audit(req, 'objet', it.id, 'suppression', `Suppression de « ${it.name} »`);
-    setFlash(reply, 'ok', `« ${it.name} » supprimé.`);
+    // Corbeille : l'objet est masqué partout et supprimé définitivement après 30 jours.
+    await db.updateTable('items').set({ deleted_at: new Date() }).where('id', '=', it.id).execute();
+    await audit(req, 'objet', it.id, 'corbeille', `« ${it.name} » mis à la corbeille`);
+    setFlash(reply, 'ok', `« ${it.name} » mis à la corbeille (récupérable pendant 30 jours).`);
     return redirect(req, reply, '/objets');
+  });
+
+  app.post('/objets/:id/restaurer', async (req, reply) => {
+    const itemId = id((req.params as Body).id);
+    const it = itemId ? await db.selectFrom('items').select(['id', 'name']).where('id', '=', itemId).where('deleted_at', 'is not', null).executeTakeFirst() : undefined;
+    if (!it) return reply.callNotFound();
+    await db.updateTable('items').set({ deleted_at: null }).where('id', '=', it.id).execute();
+    await audit(req, 'objet', it.id, 'restauration', `« ${it.name} » restauré depuis la corbeille`);
+    setFlash(reply, 'ok', `« ${it.name} » restauré.`);
+    return redirect(req, reply, `/objets/${it.id}`);
+  });
+
+  // ---- Attribution à une personne ----
+  app.post('/objets/:id/attribution', async (req, reply) => {
+    const itemId = id((req.params as Body).id);
+    const it = itemId ? await db.selectFrom('items').selectAll().where('id', '=', itemId).executeTakeFirst() : undefined;
+    if (!it) return reply.callNotFound();
+    const body = req.body as Body;
+    const before = it.assigned_person_id ? await db.selectFrom('people').select('name').where('id', '=', it.assigned_person_id).executeTakeFirst() : undefined;
+    if (str(body, 'action') === 'retirer') {
+      await db.updateTable('items').set({ assigned_person_id: null, assigned_at: null }).where('id', '=', it.id).execute();
+      await audit(req, 'objet', it.id, 'attribution', `Attribution retirée${before ? ` (était : ${before.name})` : ''}`);
+      setFlash(reply, 'ok', 'Attribution retirée.');
+      return redirect(req, reply, `/objets/${it.id}#attribution`);
+    }
+    let personId = id(body.person_id);
+    const newName = str(body, 'new_person', 120);
+    if (!personId && newName) {
+      const existing = await db.selectFrom('people').select('id').where('name', '=', newName).executeTakeFirst();
+      personId = existing ? existing.id : Number((await db.insertInto('people').values({ name: newName }).executeTakeFirstOrThrow()).insertId);
+      if (!existing) await audit(req, 'personne', personId, 'creation', `Personne « ${newName} » créée`);
+    }
+    const person = personId ? await db.selectFrom('people').select(['id', 'name']).where('id', '=', personId).executeTakeFirst() : undefined;
+    const date = str(body, 'date', 10);
+    if (!person) {
+      setFlash(reply, 'erreur', 'Choisissez une personne ou saisissez un nouveau nom.');
+      return redirect(req, reply, `/objets/${it.id}#attribution`);
+    }
+    const okDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date));
+    await db.updateTable('items').set({ assigned_person_id: person.id, assigned_at: okDate ? date : new Date().toISOString().slice(0, 10) }).where('id', '=', it.id).execute();
+    await audit(req, 'objet', it.id, 'attribution', `Attribué à ${person.name}${before && before.name !== person.name ? ` (au lieu de ${before.name})` : ''}`);
+    setFlash(reply, 'ok', `Attribué à ${person.name}.`);
+    return redirect(req, reply, `/objets/${it.id}#attribution`);
   });
 
   // ---- Informations « sans objet » (ne comptent plus comme manquantes) ----

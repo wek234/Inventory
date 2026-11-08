@@ -18,6 +18,8 @@
         </select>
       <% } else if (d.type === 'date') { %>
         <input id="<%= fid %>" name="<%= fid %>" type="date" value="<%= d.raw %>" class="<%= err ? 'invalid' : '' %>">
+      <% } else if (d.type === 'url') { %>
+        <input id="<%= fid %>" name="<%= fid %>" type="text" inputmode="url" value="<%= d.raw %>" maxlength="2000" placeholder="https://…" class="<%= err ? 'invalid' : '' %>">
       <% } else if (d.type === 'number') { %>
         <input id="<%= fid %>" name="<%= fid %>" type="text" inputmode="decimal" value="<%= d.raw %>" class="<%= err ? 'invalid' : '' %>">
       <% } else { %>

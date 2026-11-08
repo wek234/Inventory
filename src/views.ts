@@ -90,6 +90,7 @@ export function render(req: FastifyRequest, reply: FastifyReply, template: strin
   const html = eta.render(template, {
     ...data,
     user: req.user ?? null,
+    canEdit: req.user?.role === 'admin',
     csrf: req.session?.csrf ?? req.anonCsrf ?? '',
     theme,
     path: req.url.split('?')[0],

@@ -1,0 +1,57 @@
+<% layout('/layout') %>
+<% const p = it.person; %>
+<div class="page-head">
+  <div>
+    <a class="btn btn-back" href="/personnes">Retour aux personnes</a>
+    <h1><%= p.name %></h1>
+    <% if (p.notes) { %><p class="muted pre"><%= p.notes %></p><% } %>
+  </div>
+  <div class="actions"><a class="btn" href="/objets?personne=<%= p.id %>">Voir dans la liste des objets</a></div>
+</div>
+<div class="cols">
+  <section class="card">
+    <div class="card-head"><h2>Objets attribués</h2><span class="muted small"><%= it.h.plural(it.items.length, 'objet', 'objets') %></span></div>
+    <% if (!it.items.length) { %><div class="empty">Aucun objet attribué.</div><% } else { %>
+    <div class="table-wrap">
+    <table class="table responsive clickable">
+      <thead><tr><th>Nom</th><th>Marque / modèle</th><th>Depuis</th><th>Statut</th></tr></thead>
+      <tbody>
+      <% for (const i of it.items) { %>
+        <tr data-href="/objets/<%= i.id %>">
+          <td><a class="title" href="/objets/<%= i.id %>"><%= i.name %></a><% if (i.locationPath) { %><div class="muted small"><%= i.locationPath %></div><% } %></td>
+          <td data-label="Marque / modèle"><%= [i.brand, i.model].filter(Boolean).join(' ') %></td>
+          <td data-label="Depuis" class="nowrap small"><%= i.assigned_at ? it.h.day(i.assigned_at) : '' %></td>
+          <td data-label="Statut"><%~ include('/_status', { name: i.status_name, color: i.status_color }) %></td>
+        </tr>
+      <% } %>
+      </tbody>
+    </table>
+    </div>
+    <% } %>
+  </section>
+  <% if (it.canEdit) { %>
+  <div class="stack">
+    <section class="card">
+      <div class="card-head"><h2>Modifier</h2></div>
+      <div class="card-body">
+        <form method="post" action="/personnes/<%= p.id %>" class="stack">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+          <div class="field"><label for="e-name">Nom</label><input id="e-name" name="name" type="text" value="<%= p.name %>" maxlength="120" required></div>
+          <div class="field"><label for="e-notes">Notes</label><textarea id="e-notes" name="notes" rows="3"><%= p.notes || '' %></textarea></div>
+          <div><button class="btn btn-primary" type="submit">Enregistrer</button></div>
+        </form>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Supprimer</h2></div>
+      <div class="card-body">
+        <p class="small muted">Les objets attribués à cette personne redeviennent non attribués.</p>
+        <form method="post" action="/personnes/<%= p.id %>/supprimer" data-confirm="Supprimer « <%= p.name %> » ? Ses <%= it.items.length %> attribution(s) seront retirées.">
+          <input type="hidden" name="_csrf" value="<%= it.csrf %>">
+          <button class="btn btn-danger" type="submit">Supprimer</button>
+        </form>
+      </div>
+    </section>
+  </div>
+  <% } %>
+</div>

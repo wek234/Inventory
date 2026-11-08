@@ -30,7 +30,7 @@ export interface CompletenessSummary {
 
 export async function completenessSummary(cats: Tree): Promise<CompletenessSummary> {
   const [items, photos, nas, values, required] = await Promise.all([
-    db.selectFrom('items').select(['id', 'category_id', 'serial']).execute(),
+    db.selectFrom('items').select(['id', 'category_id', 'serial']).where('deleted_at', 'is', null).execute(),
     db.selectFrom('attachments').select('item_id').distinct().where('kind', '=', 'photo').execute(),
     db.selectFrom('item_na').select(['item_id', 'field']).execute(),
     db.selectFrom('item_values').select(['item_id', 'name']).execute(),

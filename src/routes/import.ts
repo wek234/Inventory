@@ -7,7 +7,8 @@ import { loadTree, Tree } from '../services/tree.js';
 import { effectiveDefs, parseValue, ValueInput, replaceItemValues, EffectiveDef } from '../services/attributes.js';
 import { audit } from '../services/audit.js';
 import { Body, str, id } from '../services/forms.js';
-import { readWorkbook, detectLayout } from '../importer/read.js';
+import { readWorkbook, detectLayout, zipInfo } from '../importer/read.js';
+import { checkMultipartCsrf } from '../auth.js';
 import { Batch, BuildCtx, buildRows, initialConfig, refreshConfig, samples, recordCount, TARGETS, VALUE_MAP_TARGETS, PreviewRow } from '../importer/transform.js';
 
 const DEFAULT_REPLACEMENTS = '';
@@ -89,8 +90,17 @@ export async function importRoutes(app: FastifyInstance) {
   app.post('/import', async (req, reply) => {
     if (!req.isMultipart()) return reply.code(400).send('Formulaire invalide');
     let file: { name: string; buf: Buffer } | null = null;
+    let csrfOk = false;
     try {
       for await (const part of req.parts()) {
+        // Jeton CSRF en premier champ, vérifié avant de lire le fichier.
+        if (!csrfOk) {
+          if (part.type === 'field' && part.fieldname === '_csrf' && checkMultipartCsrf(req, part.value)) {
+            csrfOk = true;
+            continue;
+          }
+          return reply.code(403).type('text/plain; charset=utf-8').send('Jeton de sécurité invalide ou expiré. Rechargez la page et recommencez.');
+        }
         if (part.type === 'file' && part.fieldname === 'file' && part.filename) file = { name: part.filename.slice(0, 200), buf: await part.toBuffer() };
         else if (part.type === 'file') await part.toBuffer();
       }
@@ -111,6 +121,14 @@ export async function importRoutes(app: FastifyInstance) {
     if (!isXlsx && !isCsv) {
       setFlash(reply, 'erreur', 'Format non pris en charge : utilisez un classeur Excel .xlsx ou un fichier .csv.');
       return redirect(req, reply, '/import');
+    }
+    // Protection contre les « bombes de décompression » : taille décompressée annoncée vérifiée avant toute lecture.
+    if (isXlsx) {
+      const z = zipInfo(file.buf);
+      if (!z.ok) {
+        setFlash(reply, 'erreur', z.error);
+        return redirect(req, reply, '/import');
+      }
     }
     let sheets;
     try {

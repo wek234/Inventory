@@ -9,10 +9,13 @@
 <div class="toolbar">
   <div class="muted"><%= it.h.plural(it.total, 'fiche', 'fiches') %><% if (it.units !== it.total) { %> · <%= it.h.plural(it.units, 'unité', 'unités') %><% } %></div>
   <div class="row" data-selection-bar>
+    <% if (it.canEdit) { %>
     <span class="small muted" data-selection-count hidden></span>
     <button class="btn btn-sm btn-ghost" type="button" data-action="clear-selection" hidden>Vider la sélection</button>
+    <a class="btn btn-sm" data-selection-link="/objets/masse" data-selection-only data-label-sel="Modifier la sélection" href="/objets/masse" hidden>Modifier la sélection</a>
     <a class="btn btn-sm" data-selection-link="/etiquettes" data-label-all="Étiquettes QR (liste filtrée)" data-label-sel="Étiquettes QR de la sélection" href="/etiquettes<%= it.h.qs(it.params) %>">Étiquettes QR (liste filtrée)</a>
     <a class="btn btn-sm" data-selection-link="/export/objets.csv" data-label-all="CSV (liste filtrée)" data-label-sel="CSV de la sélection" href="/export/objets.csv<%= it.h.qs(it.params) %>">CSV (liste filtrée)</a>
+    <% } %>
   </div>
 </div>
 <div class="card">
@@ -22,14 +25,16 @@
   <div class="table-wrap">
   <table class="table responsive clickable">
     <thead><tr>
-      <th class="sel"><input type="checkbox" data-select-page aria-label="Sélectionner tous les objets de la page"></th>
+      <% if (it.canEdit) { %><th class="sel"><input type="checkbox" data-select-page aria-label="Sélectionner tous les objets de la page"></th><% } %>
+      <th class="thumb-col"><span class="sr-only">Photo</span></th>
       <%~ th('name', 'Nom') %><%~ th('brand', 'Marque / modèle') %><%~ th('category', 'Catégorie') %><%~ th('location', 'Emplacement') %><%~ th('status', 'Statut') %>
     </tr></thead>
     <tbody>
     <% for (const i of it.items) { %>
       <tr data-href="/objets/<%= i.id %>">
-        <td class="sel"><input type="checkbox" data-select-id="<%= i.id %>" aria-label="Sélectionner <%= i.name %>"></td>
-        <td><a class="title" href="/objets/<%= i.id %>"><%= i.name %></a><% if (i.quantity > 1) { %> <span class="badge badge-outline">Lot × <%= it.h.num(i.quantity) %></span><% } %><% if (i.serial) { %><div class="muted small mono"><%= i.serial %></div><% } %></td>
+        <% if (it.canEdit) { %><td class="sel"><input type="checkbox" data-select-id="<%= i.id %>" aria-label="Sélectionner <%= i.name %>"></td><% } %>
+        <td class="thumb-col"><% if (i.thumb_id) { %><img class="thumb" src="/fichiers/<%= i.thumb_id %>/vignette" alt="" width="40" height="40" loading="lazy"><% } else { %><span class="thumb thumb-empty"><%~ it.h.icon('items') %></span><% } %></td>
+        <td><a class="title" href="/objets/<%= i.id %>"><%= i.name %></a><% if (i.quantity > 1) { %> <span class="badge badge-outline">Lot × <%= it.h.num(i.quantity) %></span><% } %><% if (i.serial) { %><div class="muted small mono"><%= i.serial %></div><% } %><% if (i.person_name) { %><div class="small"><span class="muted">Attribué à</span> <%= i.person_name %></div><% } %></td>
         <td data-label="Marque / modèle"><%= [i.brand, i.model].filter(Boolean).join(' ') %></td>
         <td data-label="Catégorie"><span title="<%= i.categoryPath || '' %>"><%= i.categoryName || '' %></span></td>
         <td data-label="Emplacement"><%= i.locationPath || '' %></td>

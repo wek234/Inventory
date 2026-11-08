@@ -1,0 +1,33 @@
+<% layout('/layout') %>
+<div class="page-head">
+  <div><h1>Corbeille</h1><p class="muted small">Les objets supprimés restent ici <%= it.days %> jours, puis sont effacés définitivement avec leurs photos et documents.</p></div>
+  <% if (it.items.length) { %>
+  <div class="actions">
+    <form method="post" action="/corbeille/vider" data-confirm="Supprimer définitivement les <%= it.items.length %> objet(s) de la corbeille ? Cette action est irréversible.">
+      <input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-danger" type="submit"><%~ it.h.icon('trash') %>Vider la corbeille</button>
+    </form>
+  </div>
+  <% } %>
+</div>
+<section class="card">
+  <% if (!it.items.length) { %><div class="empty">La corbeille est vide.</div><% } else { %>
+  <div class="table-wrap">
+  <table class="table responsive">
+    <thead><tr><th>Objet</th><th>Supprimé le</th><th>Effacement définitif</th><th></th></tr></thead>
+    <tbody>
+    <% for (const i of it.items) { %>
+      <tr>
+        <td><a class="title" href="/objets/<%= i.id %>"><%= i.name %></a><div class="muted small"><%= [i.brand, i.model].filter(Boolean).join(' ') %></div></td>
+        <td data-label="Supprimé le" class="small nowrap"><%= it.h.dateTime(i.deleted_at) %></td>
+        <td data-label="Effacement" class="small nowrap"><%= it.h.dateTime(i.purgeAt) %></td>
+        <td class="actions">
+          <form method="post" action="/objets/<%= i.id %>/restaurer" class="inline"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm" type="submit"><%~ it.h.icon('restore') %>Restaurer</button></form>
+          <form method="post" action="/corbeille/<%= i.id %>/supprimer" class="inline" data-confirm="Supprimer définitivement « <%= i.name %> » ?"><input type="hidden" name="_csrf" value="<%= it.csrf %>"><button class="btn btn-sm btn-danger" type="submit">Supprimer</button></form>
+        </td>
+      </tr>
+    <% } %>
+    </tbody>
+  </table>
+  </div>
+  <% } %>
+</section>

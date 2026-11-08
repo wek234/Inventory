@@ -48,6 +48,8 @@ export const config = {
   dataDir: env('DATA_DIR', '/var/lib/inventory/uploads'),
   maxUploadBytes: int('MAX_UPLOAD_MB', 20) * 1024 * 1024,
   sessionDays: int('SESSION_DAYS', 7),
+  // Durée de vie maximale d'une session, même utilisée chaque jour.
+  sessionMaxDays: int('SESSION_MAX_DAYS', 30),
   loginMaxAttempts: int('LOGIN_MAX_ATTEMPTS', 5),
   loginLockMinutes: int('LOGIN_LOCK_MINUTES', 15),
   passwordMinLength: int('PASSWORD_MIN_LENGTH', 12),
@@ -62,6 +64,11 @@ export const config = {
     requireLocalTotp: bool('OIDC_REQUIRE_LOCAL_TOTP', true),
   },
   timezone: env('APP_TIMEZONE', 'Europe/Paris'),
+  // Alertes Telegram : jeton du bot (@BotFather) et identifiant de la conversation. Vides = désactivé.
+  telegram: {
+    token: (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
+    chatId: (process.env.TELEGRAM_CHAT_ID || '').trim(),
+  },
   // Dépôt GitHub « propriétaire/nom » interrogé pour signaler les nouvelles versions (vide = désactivé).
   updateRepo: (process.env.UPDATE_REPO ?? 'wek234/Inventory').trim().replace(/^https:\/\/github\.com\//, '').replace(/\/(releases\/?)?$/, ''),
   logLevel: env('LOG_LEVEL', 'info'),

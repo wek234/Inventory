@@ -1,4 +1,8 @@
 <% layout('/layout') %>
+<% if (!it.canEdit) { %>
+<div class="page-head"><h1>Statuts</h1></div>
+<section class="card"><ul class="list"><% for (const s of it.statuses) { %><li><a href="/objets?status=<%= s.id %>"><span class="badge badge-<%= s.color %>"><%= s.name %></span></a><span class="muted"><%= it.h.plural(s.n, 'objet', 'objets') %></span></li><% } %></ul></section>
+<% } else { %>
 <div class="page-head"><h1>Statuts</h1></div>
 <div class="cols">
   <section class="card">
@@ -39,3 +43,4 @@
     </div>
   </section>
 </div>
+<% } %>

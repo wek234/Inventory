@@ -8,6 +8,7 @@ import { db, User } from './db.js';
 import { randomToken, sha256, safeEqual, encrypt, decrypt, verifyPassword, dummyVerify } from './security.js';
 import { render, redirect, setFlash } from './views.js';
 import { audit } from './services/audit.js';
+import { alert, recordLoginFailure } from './services/notify.js';
 
 
 export interface SessionRow {
@@ -23,7 +24,8 @@ export interface SessionRow {
 declare module 'fastify' {
   interface FastifyRequest {
     session: SessionRow | null;
-    user: Pick<User, 'id' | 'username'> | null;
+    user: { id: number; username: string; role: 'admin' | 'lecture' } | null;
+    apiScope: 'lecture' | 'ecriture' | null;
     anonCsrf: string | null;
     rawSessionToken: string | null;
   }
@@ -33,9 +35,28 @@ const SESSION_COOKIE = config.cookieSecure ? '__Host-inv_sid' : 'inv_sid';
 const ANON_CSRF_COOKIE = config.cookieSecure ? '__Host-inv_csrf' : 'inv_csrf';
 const PENDING_MINUTES = 10;
 
+// Routes acceptant un formulaire multipart (envoi de fichiers) : elles appellent checkMultipartCsrf().
+const MULTIPART_ROUTES = [/^\/objets\/\d+\/fichiers$/, /^\/import$/];
+
+// Vérifie le premier champ « _csrf » d'un formulaire multipart.
+export function checkMultipartCsrf(req: FastifyRequest, value: unknown): boolean {
+  const expected = req.session?.csrf ?? '';
+  return typeof value === 'string' && !!expected && safeEqual(value, expected);
+}
+
+// Ce qu'un compte en lecture seule peut faire.
+const READ_ONLY_DENY_GET = [/^\/import/, /^\/export/, /^\/etiquettes/, /\/etiquette$/, /^\/administration/, /^\/corbeille/, /^\/rangement/, /^\/objets\/nouveau/, /^\/objets\/masse/, /^\/objets\/formulaire/, /\/modifier$/];
+const READ_ONLY_ALLOW_POST = [/^\/logout$/, /^\/compte\//, /^\/login\//, /^\/auth\//];
+function readOnlyAllowed(method: string, path: string) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return !READ_ONLY_DENY_GET.some((re) => re.test(path));
+  return READ_ONLY_ALLOW_POST.some((re) => re.test(path));
+}
+
+const LOGIN_FAILED = 'Identifiant ou mot de passe incorrect, ou compte temporairement verrouillé après plusieurs échecs.';
+
 function isPublic(url: string) {
   const p = url.split('?')[0];
-  return p === '/login' || p.startsWith('/login/') || p === '/auth/oidc' || p.startsWith('/auth/oidc/') || p.startsWith('/static/') || p === '/health' || p === '/favicon.ico';
+  return p === '/login' || p.startsWith('/login/') || p === '/auth/oidc' || p.startsWith('/auth/oidc/') || p.startsWith('/static/') || p === '/health' || p === '/favicon.ico' || p === '/manifest.webmanifest' || p === '/sw.js';
 }
 
 function cookieOpts(maxAgeSec: number) {
@@ -86,6 +107,7 @@ setInterval(() => {
 
 async function registerFailure(req: FastifyRequest, user: User | undefined, reason: string) {
   ipFail(req.ip);
+  recordLoginFailure(req.ip);
   if (user) {
     const attempts = user.failed_attempts + 1;
     const lock = attempts >= config.loginMaxAttempts ? new Date(Date.now() + config.loginLockMinutes * 60_000) : null;
@@ -95,6 +117,7 @@ async function registerFailure(req: FastifyRequest, user: User | undefined, reas
       .where('id', '=', user.id)
       .execute();
     await audit(req, 'connexion', user.id, 'echec', `Échec de connexion (${reason})${lock ? ', compte verrouillé' : ''}`);
+    if (lock) alert('Compte verrouillé', [`Compte : ${user.username}`, `${config.loginMaxAttempts} échecs (${reason})`, `Adresse : ${req.ip}`]);
   } else {
     await audit(req, 'connexion', null, 'echec', `Échec de connexion (${reason})`);
   }
@@ -122,9 +145,19 @@ function takeNext(req: FastifyRequest, reply: FastifyReply): string {
 async function completeLogin(req: FastifyRequest, reply: FastifyReply, user: User, method: string) {
   await db.updateTable('users').set({ failed_attempts: 0, locked_until: null }).where('id', '=', user.id).execute();
   await createSession(req, reply, user.id, 'active');
-  req.user = { id: user.id, username: user.username };
+  req.user = { id: user.id, username: user.username, role: user.role };
   await audit(req, 'connexion', user.id, 'succes', `Connexion réussie (${method})`);
   return reply.redirect(takeNext(req, reply), 303);
+}
+
+// Connexion par clé d'accès (passkey vérifiée avec empreinte / code PIN) : vaut deux facteurs, pas de TOTP demandé.
+export async function completeLoginFromPasskey(req: FastifyRequest, reply: FastifyReply, userId: number, keyName: string): Promise<string> {
+  const user = await db.selectFrom('users').selectAll().where('id', '=', userId).executeTakeFirstOrThrow();
+  await db.updateTable('users').set({ failed_attempts: 0, locked_until: null }).where('id', '=', user.id).execute();
+  await createSession(req, reply, user.id, 'active');
+  req.user = { id: user.id, username: user.username, role: user.role };
+  await audit(req, 'connexion', user.id, 'succes', `Connexion réussie (clé d’accès « ${keyName} »)`);
+  return takeNext(req, reply);
 }
 
 async function authPluginImpl(app: FastifyInstance) {
@@ -132,27 +165,52 @@ async function authPluginImpl(app: FastifyInstance) {
   app.decorateRequest('user', null);
   app.decorateRequest('anonCsrf', null);
   app.decorateRequest('rawSessionToken', null);
+  app.decorateRequest('apiScope', null);
 
   // Chargement de la session sur chaque requête.
   app.addHook('onRequest', async (req, reply) => {
+    // API : uniquement par jeton (en-tête Authorization), jamais par cookie (pas de CSRF possible).
+    if (req.url === '/api' || req.url.startsWith('/api/')) {
+      const auth = String(req.headers.authorization ?? '');
+      const m = /^Bearer\s+(inv_[A-Za-z0-9_-]{20,80})$/.exec(auth);
+      const row = m
+        ? await db
+            .selectFrom('api_tokens')
+            .innerJoin('users', 'users.id', 'api_tokens.user_id')
+            .select(['api_tokens.id', 'api_tokens.scope', 'api_tokens.expires_at', 'users.id as uid', 'users.username', 'users.role'])
+            .where('api_tokens.token_hash', '=', sha256(m[1]))
+            .executeTakeFirst()
+        : undefined;
+      if (!row || (row.expires_at && new Date(row.expires_at).getTime() < Date.now())) {
+        return reply.code(401).header('WWW-Authenticate', 'Bearer').send({ erreur: 'Jeton d’API manquant, invalide ou expiré.' });
+      }
+      req.user = { id: row.uid, username: row.username, role: row.role };
+      // Un compte en lecture seule ne peut pas écrire, quel que soit le jeton.
+      req.apiScope = row.role === 'lecture' ? 'lecture' : row.scope;
+      void db.updateTable('api_tokens').set({ last_used_at: new Date() }).where('id', '=', row.id).execute();
+      return;
+    }
+
     const token = req.cookies[SESSION_COOKIE];
     if (token && token.length <= 64) {
       const row = await db
         .selectFrom('sessions')
         .innerJoin('users', 'users.id', 'sessions.user_id')
-        .select(['sessions.id', 'sessions.user_id', 'sessions.state', 'sessions.csrf', 'sessions.enroll_secret_enc', 'sessions.expires_at', 'sessions.last_seen_at', 'users.username'])
+        .select(['sessions.id', 'sessions.user_id', 'sessions.state', 'sessions.csrf', 'sessions.enroll_secret_enc', 'sessions.expires_at', 'sessions.last_seen_at', 'sessions.created_at', 'users.username', 'users.role'])
         .where('sessions.id', '=', sha256(token))
         .executeTakeFirst();
-      if (row && new Date(row.expires_at).getTime() > Date.now()) {
+      // Durée de vie absolue : au-delà de SESSION_MAX_DAYS, reconnexion obligatoire même si la session sert tous les jours.
+      const absoluteEnd = row ? new Date(row.created_at).getTime() + config.sessionMaxDays * 86400_000 : 0;
+      if (row && new Date(row.expires_at).getTime() > Date.now() && absoluteEnd > Date.now()) {
         req.rawSessionToken = token;
         req.session = row;
         if (row.state === 'active') {
-          req.user = { id: row.user_id, username: row.username };
-          // Session glissante : prolongée à l'usage (au plus une écriture par heure).
+          req.user = { id: row.user_id, username: row.username, role: row.role };
+          // Session glissante : prolongée à l'usage (au plus une écriture par heure), sans dépasser la durée maximale.
           if (Date.now() - new Date(row.last_seen_at).getTime() > 3600_000) {
-            const exp = new Date(Date.now() + config.sessionDays * 86400_000);
+            const exp = new Date(Math.min(Date.now() + config.sessionDays * 86400_000, absoluteEnd));
             await db.updateTable('sessions').set({ last_seen_at: new Date(), expires_at: exp }).where('id', '=', row.id).execute();
-            reply.setCookie(SESSION_COOKIE, token, cookieOpts(config.sessionDays * 86400));
+            reply.setCookie(SESSION_COOKIE, token, cookieOpts(Math.floor((exp.getTime() - Date.now()) / 1000)));
           }
         }
       } else if (row) {
@@ -184,15 +242,34 @@ async function authPluginImpl(app: FastifyInstance) {
 
   // Contrôle CSRF + origine sur toutes les requêtes qui modifient des données.
   app.addHook('preHandler', async (req, reply) => {
-    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return;
+    const path = req.url.split('?')[0];
+    const safeMethod = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+
+    // API : le jeton fait foi ; l'écriture exige un jeton « écriture ».
+    if (req.apiScope) {
+      if (!safeMethod && req.apiScope !== 'ecriture') return reply.code(403).send({ erreur: 'Ce jeton est en lecture seule.' });
+      return;
+    }
+
+    // Comptes en lecture seule : consultation uniquement.
+    if (req.user?.role === 'lecture' && !readOnlyAllowed(req.method, path)) {
+      if (req.headers['hx-request'] === 'true') return reply.code(403).send('Accès en lecture seule.');
+      return reply.code(403).type('text/plain; charset=utf-8').send('Votre compte est en lecture seule : cette action n’est pas autorisée.');
+    }
+
+    if (safeMethod) return;
     const origin = req.headers.origin;
     if (origin) {
       const allowed = [new URL(config.publicUrl).origin, `${req.protocol}://${req.host}`];
       if (!allowed.includes(origin)) return reply.code(403).send('Origine refusée');
     }
+    // Envois de fichiers : le jeton est le premier champ du formulaire, vérifié par la route avant de lire le moindre fichier.
+    if (req.isMultipart()) {
+      if (!MULTIPART_ROUTES.some((re) => re.test(path))) return reply.code(415).send('Type de contenu non accepté');
+      return;
+    }
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const query = (req.query ?? {}) as Record<string, unknown>;
-    const sent = String(req.headers['x-csrf-token'] ?? body._csrf ?? query._csrf ?? '');
+    const sent = String(req.headers['x-csrf-token'] ?? body._csrf ?? '');
     const expected = req.session?.csrf ?? req.anonCsrf ?? '';
     if (!sent || !expected || !safeEqual(sent, expected)) {
       return reply.code(403).type('text/plain; charset=utf-8').send('Jeton de sécurité invalide ou expiré. Rechargez la page et recommencez.');
@@ -207,8 +284,9 @@ async function authPluginImpl(app: FastifyInstance) {
 
   app.post('/login', async (req, reply) => {
     const { username = '', password = '' } = (req.body ?? {}) as Record<string, string>;
-    const fail = (msg = 'Identifiant ou mot de passe incorrect.') => render(req, reply, 'auth/login', { error: msg, username }, 401);
-    if (ipBlocked(req.ip)) return fail('Trop de tentatives depuis votre adresse. Réessayez dans 15 minutes.');
+    // Message unique dans tous les cas d'échec : ne révèle ni l'existence du compte ni son verrouillage.
+    const fail = () => render(req, reply, 'auth/login', { error: LOGIN_FAILED, username }, 401);
+    if (ipBlocked(req.ip)) return fail();
     const user = await db.selectFrom('users').selectAll().where('username', '=', String(username).trim()).executeTakeFirst();
     if (!user) {
       await dummyVerify(String(password));
@@ -217,7 +295,8 @@ async function authPluginImpl(app: FastifyInstance) {
     }
     if (isLocked(user)) {
       await dummyVerify(String(password));
-      return fail(`Compte temporairement verrouillé après ${config.loginMaxAttempts} échecs. Réessayez plus tard.`);
+      await audit(req, 'connexion', user.id, 'echec', 'Tentative sur un compte verrouillé');
+      return fail();
     }
     if (!(await verifyPassword(user.password_hash, String(password)))) {
       await registerFailure(req, user, 'mot de passe');
@@ -242,7 +321,7 @@ async function authPluginImpl(app: FastifyInstance) {
     const user = await db.selectFrom('users').selectAll().where('id', '=', req.session.user_id).executeTakeFirstOrThrow();
     if (isLocked(user) || ipBlocked(req.ip)) {
       await db.deleteFrom('sessions').where('id', '=', req.session.id).execute();
-      return render(req, reply, 'auth/login', { error: 'Compte temporairement verrouillé. Réessayez plus tard.' }, 401);
+      return render(req, reply, 'auth/login', { error: LOGIN_FAILED }, 401);
     }
     const code = String(((req.body ?? {}) as Record<string, string>).code ?? '');
     const step = checkTotp(decrypt(user.totp_secret_enc!), code, user.totp_last_step);
@@ -282,6 +361,7 @@ async function authPluginImpl(app: FastifyInstance) {
       .where('id', '=', user.id)
       .execute();
     await audit(req, 'compte', user.id, 'totp', 'Authentification à deux facteurs activée');
+    alert('Double authentification configurée', [`Compte : ${user.username}`, `Adresse : ${req.ip}`]);
     return completeLogin(req, reply, user, 'mot de passe + TOTP');
   });
 
@@ -361,7 +441,7 @@ async function registerOidc(app: FastifyInstance) {
       await audit(req, 'connexion', null, 'echec', 'SSO : identité non associée à un compte');
       return render(req, reply, 'auth/login', { error: 'Cette identité SSO n’est associée à aucun compte.' }, 403);
     }
-    if (isLocked(user)) return render(req, reply, 'auth/login', { error: 'Compte temporairement verrouillé.' }, 403);
+    if (isLocked(user)) return render(req, reply, 'auth/login', { error: LOGIN_FAILED }, 403);
     if (config.oidc.requireLocalTotp && user.totp_enabled) {
       await createSession(req, reply, user.id, 'pending_totp');
       return reply.redirect('/login/totp', 303);

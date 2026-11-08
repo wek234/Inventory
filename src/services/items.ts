@@ -18,6 +18,7 @@ export interface ItemFilters {
   ids: number[]; // sélection explicite (étiquettes, export) : remplace les autres filtres
   manque: '' | 'photo' | 'serie' | 'carac'; // fiches incomplètes
   etiquette: '' | 'jamais'; // étiquette jamais imprimée
+  personne: number | 'none' | 'any' | null; // attribution
   caracIds?: number[]; // calculé par resolveFilters pour manque=carac
 }
 
@@ -63,6 +64,7 @@ export function parseFilters(q: Record<string, unknown>): ItemFilters {
     dir: s('dir') === 'desc' ? 'desc' : 'asc',
     manque: (['photo', 'serie', 'carac'].includes(s('manque')) ? s('manque') : '') as ItemFilters['manque'],
     etiquette: s('etiquette') === 'jamais' ? 'jamais' : '',
+    personne: ['none', 'any'].includes(s('personne')) ? (s('personne') as 'none' | 'any') : toId(q.personne),
     ids: [...new Set(s('ids', 20000).split(',').map((x) => toId(x)).filter((x): x is number => x !== null))].slice(0, 2000),
   };
 }
@@ -80,20 +82,35 @@ export function filterParams(f: ItemFilters): Record<string, string | number | n
     lot: f.lot ? 1 : null,
     manque: f.manque || null,
     etiquette: f.etiquette || null,
+    personne: f.personne,
     sort: f.sort === 'name' ? null : f.sort,
     dir: f.dir === 'asc' ? null : f.dir,
   };
 }
 
 export function hasFilters(f: ItemFilters) {
-  return !!(f.q || f.cat || f.loc || f.status || f.attr || f.lot || f.manque || f.etiquette);
+  return !!(f.q || f.cat || f.loc || f.status || f.attr || f.lot || f.manque || f.etiquette || f.personne);
 }
 
 export function buildItemQuery(f: ItemFilters, catTree: Tree, locTree: Tree) {
   let qb = db
     .selectFrom('items')
     .leftJoin('statuses', 'statuses.id', 'items.status_id')
+    .leftJoin('people', 'people.id', 'items.assigned_person_id')
     .select([
+      'people.name as person_name',
+      'items.assigned_person_id',
+      (eb) =>
+        eb
+          .selectFrom('attachments as ph')
+          .select('ph.id')
+          .whereRef('ph.item_id', '=', 'items.id')
+          .where('ph.kind', '=', 'photo')
+          .where('ph.thumb_name', 'is not', null)
+          .orderBy('ph.is_primary', 'desc')
+          .orderBy('ph.created_at', 'desc')
+          .limit(1)
+          .as('thumb_id'),
       'items.id',
       'items.name',
       'items.brand',
@@ -110,6 +127,7 @@ export function buildItemQuery(f: ItemFilters, catTree: Tree, locTree: Tree) {
       'statuses.color as status_color',
     ]);
 
+  qb = qb.where('items.deleted_at', 'is', null);
   if (f.ids.length) return qb.where('items.id', 'in', f.ids);
 
   if (f.q) {
@@ -130,6 +148,9 @@ export function buildItemQuery(f: ItemFilters, catTree: Tree, locTree: Tree) {
   if (f.loc === 'none') qb = qb.where('items.location_id', 'is', null);
   else if (f.loc) qb = qb.where('items.location_id', 'in', descendantIds(locTree, f.loc).concat([-1]));
   if (f.etiquette === 'jamais') qb = qb.where('items.label_printed_at', 'is', null);
+  if (f.personne === 'none') qb = qb.where('items.assigned_person_id', 'is', null);
+  else if (f.personne === 'any') qb = qb.where('items.assigned_person_id', 'is not', null);
+  else if (f.personne) qb = qb.where('items.assigned_person_id', '=', f.personne);
   if (f.manque === 'serie') {
     qb = qb
       .where((eb) => eb.or([eb('items.serial', 'is', null), eb('items.serial', '=', '')]))

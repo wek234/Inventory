@@ -15,12 +15,15 @@
 </div>
 
 <div class="stack">
+  <% if (it.canEdit) { %>
   <nav class="shortcuts" aria-label="Raccourcis">
     <a class="btn btn-primary" href="/objets/nouveau"><%~ it.h.icon('plus') %>Nouvel objet</a>
     <a class="btn" href="/import"><%~ it.h.icon('import') %>Importer</a>
     <a class="btn" href="/etiquettes?etiquette=jamais"><%~ it.h.icon('qr') %>Étiquettes jamais imprimées <span class="badge badge-outline"><%= it.h.num(it.neverPrinted) %></span></a>
+    <a class="btn" href="/rangement"><%~ it.h.icon('scan') %>Ranger (scanner)</a>
     <a class="btn" href="/export/objets.csv"><%~ it.h.icon('export') %>Exporter en CSV</a>
   </nav>
+  <% } %>
 
   <div class="grid-3">
     <div class="card stat"><div class="n"><%= it.h.num(it.total) %></div><div class="l">fiches</div></div>
@@ -30,7 +33,7 @@
 
   <div class="grid-2">
     <section class="card">
-      <div class="card-head"><h2>À traiter</h2><a class="small" href="/statuts">Choisir les statuts</a></div>
+      <div class="card-head"><h2>À traiter</h2><% if (it.canEdit) { %><a class="small" href="/statuts">Choisir les statuts</a><% } %></div>
       <% if (!it.toHandle.length) { %><div class="empty">Rien à traiter.</div><% } else { %>
       <ul class="list">
         <% for (const t of it.toHandle) { %>
